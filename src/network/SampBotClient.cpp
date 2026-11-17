@@ -30,6 +30,22 @@ namespace FakeBots
     {
         constexpr float kPi = 3.14159265358979323846f;
 
+        const char* StateName(SampBotClient::State state)
+        {
+            switch (state)
+            {
+                case SampBotClient::State::Disconnected: return "Disconnected";
+                case SampBotClient::State::Connecting: return "Connecting";
+                case SampBotClient::State::AwaitingInit: return "AwaitingInit";
+                case SampBotClient::State::AwaitingClassResponse: return "AwaitingClassResponse";
+                case SampBotClient::State::AwaitingSpawnResponse: return "AwaitingSpawnResponse";
+                case SampBotClient::State::Spawned: return "Spawned";
+                case SampBotClient::State::Idle: return "Idle";
+                case SampBotClient::State::Failed: return "Failed";
+                default: return "Unknown";
+            }
+        }
+
         float Clamp100(float value)
         {
             if (!std::isfinite(value))
@@ -299,6 +315,9 @@ namespace FakeBots
 
     void SampBotClient::EnterState(State state)
     {
+        if (m_state != state)
+            sampgdk::logprintf("[FakeBots][STATE] name='%s' player=%d %s -> %s.",
+                m_name.c_str(), m_playerId, StateName(m_state), StateName(state));
         m_state = state;
     }
 
@@ -308,6 +327,8 @@ namespace FakeBots
 
         if (config.host.empty() || config.port == 0 || m_name.empty())
         {
+            sampgdk::logprintf("[FakeBots][START] rejected invalid config name='%s' host='%s' port=%u.",
+                m_name.c_str(), config.host.c_str(), static_cast<unsigned>(config.port));
             m_state = State::Failed;
             return false;
         }
@@ -334,6 +355,7 @@ namespace FakeBots
         m_client = RakNet::RakNetworkFactory::GetRakClientInterface();
         if (m_client == nullptr)
         {
+            sampgdk::logprintf("[FakeBots][START] RakNetworkFactory returned null for '%s'.", m_name.c_str());
             m_state = State::Failed;
             return false;
         }
@@ -346,8 +368,13 @@ namespace FakeBots
         const uint32_t seconds = std::max<uint32_t>(3, m_config.connectTimeoutMs / 1000);
         SAMPRakNet::SetMaxConnectionAttempts(seconds);
 
+        sampgdk::logprintf("[FakeBots][START] name='%s' endpoint=%s:%u timeout=%u ms version='%s' netgame=%u.",
+            m_name.c_str(), m_config.host.c_str(), static_cast<unsigned>(m_config.port),
+            static_cast<unsigned>(m_config.connectTimeoutMs), m_config.clientVersion.c_str(),
+            static_cast<unsigned>(m_config.netgameVersion));
         if (!m_client->Connect(m_config.host.c_str(), m_config.port, 0, 0, std::max(1, m_config.threadSleepMs)))
         {
+            sampgdk::logprintf("[FakeBots][START] Connect() returned false for '%s'.", m_name.c_str());
             UnregisterRpcHandlers();
             RakNet::RakNetworkFactory::DestroyRakClientInterface(m_client);
             m_client = nullptr;
@@ -362,6 +389,9 @@ namespace FakeBots
 
     void SampBotClient::Stop(unsigned int blockDurationMs)
     {
+        sampgdk::logprintf("[FakeBots][STOP] name='%s' player=%d state=%s client=%s block=%u.",
+            m_name.c_str(), m_playerId, StateName(m_state), m_client != nullptr ? "yes" : "no",
+            blockDurationMs);
         if (m_client != nullptr)
         {
             UnregisterRpcHandlers();
@@ -400,6 +430,9 @@ namespace FakeBots
     {
         if (m_state == State::Failed || m_state == State::Disconnected)
             return;
+        sampgdk::logprintf("[FakeBots][FAIL] name='%s' player=%d state=%s code=%d connected=%s.",
+            m_name.c_str(), m_playerId, StateName(m_state), reason,
+            m_client != nullptr && m_client->IsConnected() ? "yes" : "no");
         m_state = State::Failed;
         m_hasDeadline = false;
         if (!m_failureNotified)
@@ -454,6 +487,9 @@ namespace FakeBots
              m_state == State::AwaitingClassResponse || m_state == State::AwaitingSpawnResponse) &&
             static_cast<int32_t>(now - m_stageDeadlineMs) > 0)
         {
+            sampgdk::logprintf("[FakeBots][TIMEOUT] name='%s' player=%d state=%s deadline=%u now=%u.",
+                m_name.c_str(), m_playerId, StateName(m_state),
+                static_cast<unsigned>(m_stageDeadlineMs), static_cast<unsigned>(now));
             SetFailed(NetFail::kStageTimeoutBase - static_cast<int>(m_state));
             return;
         }
@@ -471,13 +507,20 @@ namespace FakeBots
             }
 
             const unsigned char packetId = packet->data[0];
+            sampgdk::logprintf("[FakeBots][NET][RX] name='%s' player=%d state=%s packet=%u size=%u.",
+                m_name.c_str(), m_playerId, StateName(m_state), static_cast<unsigned>(packetId),
+                static_cast<unsigned>(packet->length));
             switch (packetId)
             {
                 case RakNet::ID_CONNECTION_REQUEST_ACCEPTED:
                 {
                     // [id][u32 ip][u16 port][u16 playerIndex][u32 challenge]
                     if (packet->length < 13 || m_state != State::Connecting)
+                    {
+                        sampgdk::logprintf("[FakeBots][NET][ACCEPT] ignored name='%s' size=%u state=%s.",
+                            m_name.c_str(), static_cast<unsigned>(packet->length), StateName(m_state));
                         break;
+                    }
                     RakNet::BitStream accepted(packet->data, packet->length, false);
                     accepted.IgnoreBits(8);
                     accepted.IgnoreBits(8 * (sizeof(unsigned int) + sizeof(unsigned short)));
@@ -489,6 +532,8 @@ namespace FakeBots
                         break;
                     }
 
+                    sampgdk::logprintf("[FakeBots][NET][ACCEPT] name='%s' slot=%u challenge=%u.",
+                        m_name.c_str(), static_cast<unsigned>(slotIndex), challenge);
                     EnterState(State::AwaitingInit);
                     MarkStageDeadline(m_config.initTimeoutMs);
                     if (!SendClientJoin(challenge))
@@ -502,6 +547,8 @@ namespace FakeBots
                 case RakNet::ID_CONNECTION_BANNED:
                 case RakNet::ID_DISCONNECTION_NOTIFICATION:
                 case RakNet::ID_CONNECTION_LOST:
+                    sampgdk::logprintf("[FakeBots][NET][END] name='%s' player=%d packet=%u state=%s.",
+                        m_name.c_str(), m_playerId, static_cast<unsigned>(packetId), StateName(m_state));
                     SetFailed(static_cast<int>(packetId));
                     break;
 
@@ -567,9 +614,18 @@ namespace FakeBots
     bool SampBotClient::SendRpc(unsigned char rpcId, RakNet::BitStream& bs)
     {
         if (m_client == nullptr || !IsConnected())
+        {
+            sampgdk::logprintf("[FakeBots][RPC][TX-FAIL] name='%s' player=%d rpc=%u client=%s connected=%s state=%s.",
+                m_name.c_str(), m_playerId, static_cast<unsigned>(rpcId),
+                m_client != nullptr ? "yes" : "no", IsConnected() ? "yes" : "no", StateName(m_state));
             return false;
-        return m_client->RPC(static_cast<RakNet::RPCID>(rpcId), &bs, RakNet::HIGH_PRIORITY,
-                             RakNet::RELIABLE_ORDERED, 0, false, RakNet::UNASSIGNED_NETWORK_ID, nullptr);
+        }
+        const bool sent = m_client->RPC(static_cast<RakNet::RPCID>(rpcId), &bs, RakNet::HIGH_PRIORITY,
+                                        RakNet::RELIABLE_ORDERED, 0, false, RakNet::UNASSIGNED_NETWORK_ID, nullptr);
+        sampgdk::logprintf("[FakeBots][RPC][TX] name='%s' player=%d rpc=%u bits=%u result=%s state=%s.",
+            m_name.c_str(), m_playerId, static_cast<unsigned>(rpcId),
+            static_cast<unsigned>(bs.GetNumberOfBitsUsed()), sent ? "ok" : "failed", StateName(m_state));
+        return sent;
     }
 
     bool SampBotClient::SendSync(RakNet::BitStream& bs)
@@ -851,7 +907,14 @@ namespace FakeBots
     void SampBotClient::Dispatch(unsigned char rpcId, RakNet::RPCParameters* params)
     {
         if (params == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][RPC][RX] name='%s' rpc=%u params=null.",
+                m_name.c_str(), static_cast<unsigned>(rpcId));
             return;
+        }
+        sampgdk::logprintf("[FakeBots][RPC][RX] name='%s' player=%d rpc=%u bits=%u state=%s.",
+            m_name.c_str(), m_playerId, static_cast<unsigned>(rpcId),
+            static_cast<unsigned>(params->numberOfBitsOfData), StateName(m_state));
 
         // Some RPCs (RemovePlayerFromVehicle, ResetPlayerWeapons, ...) carry no
         // payload at all; they must still be dispatched.
@@ -1018,6 +1081,8 @@ namespace FakeBots
         bs.Read(u32);
         if (!bs.Read(playerId))
         {
+            sampgdk::logprintf("[FakeBots][INIT] parse failed name='%s' bits=%u before-player-id.",
+                m_name.c_str(), static_cast<unsigned>(bs.GetNumberOfBitsUsed()));
             SetFailed(static_cast<int>(kRpcInitGame));
             return;
         }
@@ -1038,11 +1103,16 @@ namespace FakeBots
 
         if (!IsValidPlayerId(static_cast<int>(playerId)))
         {
+            sampgdk::logprintf("[FakeBots][INIT] invalid player id name='%s' player=%u.",
+                m_name.c_str(), static_cast<unsigned>(playerId));
             SetFailed(static_cast<int>(kRpcInitGame));
             return;
         }
 
         m_playerId = static_cast<int>(playerId);
+        sampgdk::logprintf("[FakeBots][INIT] parsed name='%s' player=%d bits=%u onFootRate=%u inCarRate=%u.",
+            m_name.c_str(), m_playerId, static_cast<unsigned>(bs.GetNumberOfBitsUsed()),
+            static_cast<unsigned>(onFootRate), static_cast<unsigned>(inCarRate));
         if (!m_playerIdAnnounced)
         {
             m_playerIdAnnounced = true;
@@ -1063,9 +1133,19 @@ namespace FakeBots
     {
         uint8_t selectable = 0;
         if (!bs.Read(selectable))
+        {
+            sampgdk::logprintf("[FakeBots][CLASS] malformed response name='%s' bits=%u.",
+                m_name.c_str(), static_cast<unsigned>(bs.GetNumberOfBitsUsed()));
             return;
+        }
+        sampgdk::logprintf("[FakeBots][CLASS] response name='%s' selectable=%u state=%s.",
+            m_name.c_str(), static_cast<unsigned>(selectable), StateName(m_state));
         if (m_state != State::AwaitingClassResponse)
+        {
+            sampgdk::logprintf("[FakeBots][CLASS] ignored unexpected response name='%s' state=%s.",
+                m_name.c_str(), StateName(m_state));
             return;
+        }
 
         if (selectable == 0)
         {
@@ -1093,15 +1173,24 @@ namespace FakeBots
         if (bs.GetNumberOfBitsUsed() >= 32)
         {
             if (!bs.Read(allow))
+            {
+                sampgdk::logprintf("[FakeBots][SPAWN] malformed 32-bit response name='%s'.", m_name.c_str());
                 return;
+            }
         }
         else
         {
             uint8_t small = 0;
             if (!bs.Read(small))
+            {
+                sampgdk::logprintf("[FakeBots][SPAWN] malformed 8-bit response name='%s'.", m_name.c_str());
                 return;
+            }
             allow = small;
         }
+        sampgdk::logprintf("[FakeBots][SPAWN] response name='%s' allow=%u state=%s bits=%u.",
+            m_name.c_str(), static_cast<unsigned>(allow), StateName(m_state),
+            static_cast<unsigned>(bs.GetNumberOfBitsUsed()));
 
         // 2 == the script called SpawnPlayer(): the server wants us to spawn
         // regardless of what state the handshake was in.
