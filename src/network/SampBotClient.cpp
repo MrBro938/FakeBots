@@ -326,9 +326,7 @@ namespace FakeBots
 
         if (config.host.empty() || config.port == 0 || m_name.empty())
         {
-            sampgdk::logprintf("[FakeBots][START] rejected invalid config name='%s' host='%s' port=%u.",
-                m_name.c_str(), config.host.c_str(), static_cast<unsigned>(config.port));
-            m_state = State::Failed;
+                        m_state = State::Failed;
             return false;
         }
 
@@ -354,8 +352,7 @@ namespace FakeBots
         m_client = RakNet::RakNetworkFactory::GetRakClientInterface();
         if (m_client == nullptr)
         {
-            sampgdk::logprintf("[FakeBots][START] RakNetworkFactory returned null for '%s'.", m_name.c_str());
-            m_state = State::Failed;
+                        m_state = State::Failed;
             return false;
         }
 
@@ -367,14 +364,9 @@ namespace FakeBots
         const uint32_t seconds = std::max<uint32_t>(3, m_config.connectTimeoutMs / 1000);
         SAMPRakNet::SetMaxConnectionAttempts(seconds);
 
-        sampgdk::logprintf("[FakeBots][START] name='%s' endpoint=%s:%u timeout=%u ms version='%s' netgame=%u.",
-            m_name.c_str(), m_config.host.c_str(), static_cast<unsigned>(m_config.port),
-            static_cast<unsigned>(m_config.connectTimeoutMs), m_config.clientVersion.c_str(),
-            static_cast<unsigned>(m_config.netgameVersion));
-        if (!m_client->Connect(m_config.host.c_str(), m_config.port, 0, 0, std::max(1, m_config.threadSleepMs)))
+                if (!m_client->Connect(m_config.host.c_str(), m_config.port, 0, 0, std::max(1, m_config.threadSleepMs)))
         {
-            sampgdk::logprintf("[FakeBots][START] Connect() returned false for '%s'.", m_name.c_str());
-            UnregisterRpcHandlers();
+                        UnregisterRpcHandlers();
             RakNet::RakNetworkFactory::DestroyRakClientInterface(m_client);
             m_client = nullptr;
             m_state = State::Failed;
@@ -427,10 +419,7 @@ namespace FakeBots
     {
         if (m_state == State::Failed || m_state == State::Disconnected)
             return;
-        sampgdk::logprintf("[FakeBots][FAIL] name='%s' player=%d state=%s code=%d connected=%s.",
-            m_name.c_str(), m_playerId, StateName(m_state), reason,
-            m_client != nullptr && m_client->IsConnected() ? "yes" : "no");
-        m_state = State::Failed;
+                m_state = State::Failed;
         m_hasDeadline = false;
         if (!m_failureNotified)
         {
