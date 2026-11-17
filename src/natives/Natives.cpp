@@ -86,7 +86,12 @@ namespace
         (void)amx;
         if (!HasNativeParams(params, 1))
             return 0;
-        return BotManager::Get().Destroy(static_cast<int>(params[1])) ? 1 : 0;
+        const int botId = static_cast<int>(params[1]);
+        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotDestroy called bot=%d.", botId);
+        const bool destroyed = BotManager::Get().Destroy(botId);
+        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotDestroy bot=%d result=%s.",
+            botId, destroyed ? "destroyed" : "not-destroyed");
+        return destroyed ? 1 : 0;
     }
 
     cell AMX_NATIVE_CALL n_FakeBotRespawn(AMX *amx, cell *params)
@@ -607,11 +612,16 @@ namespace
         // Copy first - Destroy() mutates the group via PurgeBot() as it goes.
         std::vector<int> botIds(members->begin(), members->end());
         int affected = 0;
+        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotGroupDestroyBots called group=%d members=%u.",
+            groupId, static_cast<unsigned>(botIds.size()));
         for (int botId : botIds)
         {
+            sampgdk::logprintf("[FakeBots][NATIVE] group destroy requests bot=%d.", botId);
             if (BotManager::Get().Destroy(botId))
                 affected++;
         }
+        sampgdk::logprintf("[FakeBots][NATIVE] group destroy group=%d affected=%d.",
+            groupId, affected);
         return affected;
     }
 
