@@ -81,18 +81,27 @@ extern "C"
     {
         char name[MAX_PLAYER_NAME + 1] = {0};
         sampgdk::GetPlayerName(playerid, name, sizeof(name));
+        Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
+        sampgdk::logprintf("[FakeBots] OnPlayerConnect observed: player=%d name='%s' mapped=%s.",
+            playerid, name, mappedBot != nullptr ? "yes" : "pending");
         BotManager::Get().HandlePlayerConnect(playerid, name);
         return true;
     }
 
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDisconnect(int playerid, int reason)
     {
+        Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
+        sampgdk::logprintf("[FakeBots] OnPlayerDisconnect observed: player=%d reason=%d bot=%s.",
+            playerid, reason, mappedBot != nullptr ? mappedBot->GetName().c_str() : "no");
         BotManager::Get().HandlePlayerDisconnect(playerid, reason);
         return true;
     }
 
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerRequestClass(int playerid, int classid)
     {
+        Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
+        sampgdk::logprintf("[FakeBots] OnPlayerRequestClass observed: player=%d class=%d bot=%s.",
+            playerid, classid, mappedBot != nullptr ? mappedBot->GetName().c_str() : "no");
         BotManager::Get().HandlePlayerRequestClass(playerid, classid);
         return true;
     }
