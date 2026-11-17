@@ -20,6 +20,7 @@ namespace FakeBots
         int RequestCreate(const std::string &name, const PendingSpawn &spawn);
         void ResolveConnection(int playerId, const std::string &playerName);
         void HandlePlayerRequestClass(int playerId, int classId);
+        void HandlePlayerSpawn(int playerId);
         void BindNetworkPlayer(int botId, int playerId);
         bool HandlePlayerConnect(int playerId, const std::string &playerName);
         bool Destroy(int botId);
@@ -61,6 +62,8 @@ namespace FakeBots
 
         std::array<std::unique_ptr<Bot>, kMaxBots> m_bots{};
         std::unordered_map<int, int> m_playerIdToBotId;
+        std::unordered_map<int, std::string> m_pendingPlayerConnects;
+        std::unordered_map<int, uint64_t> m_pendingSpawnRestores;
         std::vector<int> m_activeBotIds;
         std::vector<int> m_pool;
         std::unordered_set<int> m_realPlayers;
