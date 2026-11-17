@@ -507,9 +507,8 @@ namespace FakeBots
             playerId, botId, bot->GetName().c_str());
 
         // InitGame is the authoritative proof that this exact network client
-        // owns the server player id. Do not make activation depend on observing
-        // OnPlayerConnect: sampgdk's public-call hook can miss that callback when
-        // another plugin has registered an incompatible callback table.
+        // owns the server player id. Activation must not depend on the relative
+        // order in which OnPlayerConnect and InitGame are observed.
         std::string playerName;
         auto pending = m_pendingPlayerConnects.find(playerId);
         if (pending != m_pendingPlayerConnects.end())
