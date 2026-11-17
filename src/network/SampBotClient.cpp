@@ -507,9 +507,6 @@ namespace FakeBots
             }
 
             const unsigned char packetId = packet->data[0];
-            sampgdk::logprintf("[FakeBots][NET][RX] name='%s' player=%d state=%s packet=%u size=%u.",
-                m_name.c_str(), m_playerId, StateName(m_state), static_cast<unsigned>(packetId),
-                static_cast<unsigned>(packet->length));
             switch (packetId)
             {
                 case RakNet::ID_CONNECTION_REQUEST_ACCEPTED:
