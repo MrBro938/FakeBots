@@ -54,14 +54,14 @@ namespace
         {
             // amx_StrParam yields nullptr for an empty string: there is no
             // sensible nickname to invent, so refuse instead of guessing.
-            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is empty.");
+            ((void)0);
             return static_cast<cell>(kInvalidId);
         }
         const char *rawName = nameBuf;
         const size_t rawNameLength = std::strlen(rawName);
         if (rawNameLength > MAX_PLAYER_NAME)
         {
-            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is longer than %d characters.", MAX_PLAYER_NAME);
+            ((void)0);
             return static_cast<cell>(kInvalidId);
         }
         std::memcpy(name, rawName, rawNameLength);
@@ -87,10 +87,9 @@ namespace
         if (!HasNativeParams(params, 1))
             return 0;
         const int botId = static_cast<int>(params[1]);
-        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotDestroy called bot=%d.", botId);
+        ((void)0);
         const bool destroyed = BotManager::Get().Destroy(botId);
-        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotDestroy bot=%d result=%s.",
-            botId, destroyed ? "destroyed" : "not-destroyed");
+        ((void)0);
         return destroyed ? 1 : 0;
     }
 
@@ -612,16 +611,14 @@ namespace
         // Copy first - Destroy() mutates the group via PurgeBot() as it goes.
         std::vector<int> botIds(members->begin(), members->end());
         int affected = 0;
-        sampgdk::logprintf("[FakeBots][NATIVE] FakeBotGroupDestroyBots called group=%d members=%u.",
-            groupId, static_cast<unsigned>(botIds.size()));
+        ((void)0);
         for (int botId : botIds)
         {
-            sampgdk::logprintf("[FakeBots][NATIVE] group destroy requests bot=%d.", botId);
+            ((void)0);
             if (BotManager::Get().Destroy(botId))
                 affected++;
         }
-        sampgdk::logprintf("[FakeBots][NATIVE] group destroy group=%d affected=%d.",
-            groupId, affected);
+        ((void)0);
         return affected;
     }
 
