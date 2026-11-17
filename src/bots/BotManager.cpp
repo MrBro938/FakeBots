@@ -222,14 +222,28 @@ namespace FakeBots
         {
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
+            {
+                sampgdk::logprintf("[FakeBots][BIND] callback ignored bot=%d player=%d reason=stale-generation.",
+                    botId, playerId);
                 return;
+            }
+            sampgdk::logprintf("[FakeBots][BIND] callback bot=%d name='%s' player=%d generation=%llu.",
+                botId, current->GetName().c_str(), playerId,
+                static_cast<unsigned long long>(generation));
             BindNetworkPlayer(botId, playerId);
         });
         bot.Client().SetTransportCallback([this, botId, generation](int reason)
         {
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
+            {
+                sampgdk::logprintf("[FakeBots][TRANSPORT] callback ignored bot=%d code=%d reason=stale-generation.",
+                    botId, reason);
                 return;
+            }
+            sampgdk::logprintf("[FakeBots][TRANSPORT] callback bot=%d name='%s' player=%d state=%d code=%d.",
+                botId, current->GetName().c_str(), current->GetPlayerId(),
+                static_cast<int>(current->Client().GetState()), reason);
             HandleTransportFailure(botId, reason);
         });
     }
@@ -438,6 +452,9 @@ namespace FakeBots
                 config.password = password;
         }
 
+        sampgdk::logprintf("[FakeBots][CONNECT-START] bot=%d name='%s' endpoint=%s:%u retries=%d.",
+            bot.GetBotId(), bot.GetName().c_str(), config.host.c_str(),
+            static_cast<unsigned>(config.port), bot.GetConnectRetries());
         if (config.port == 0)
         {
             sampgdk::logprintf("[FakeBots] Cannot connect '%s': the server port is unavailable.", bot.GetName().c_str());
@@ -476,8 +493,13 @@ namespace FakeBots
             if (bot == nullptr || bot->GetGeneration() != next.generation)
                 continue; // destroyed before it got its turn
 
+            sampgdk::logprintf("[FakeBots][QUEUE] starting bot=%d name='%s' inFlight=%d queued=%u.",
+                next.botId, bot->GetName().c_str(), inFlight,
+                static_cast<unsigned>(m_startQueue.size()));
             if (!StartBotConnection(*bot))
             {
+                sampgdk::logprintf("[FakeBots][QUEUE] start failed bot=%d name='%s'.",
+                    next.botId, bot->GetName().c_str());
                 HandleTransportFailure(next.botId, NetFail::kAttemptFailed);
                 continue;
             }
@@ -489,17 +511,35 @@ namespace FakeBots
     {
         Bot *bot = GetByBotId(botId);
         const int maxPlayers = sampgdk::GetMaxPlayers();
-        if (bot == nullptr || playerId < 0 || playerId >= maxPlayers)
+        if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=bot-not-found.",
+                botId, playerId);
             return;
+        }
+        if (playerId < 0 || playerId >= maxPlayers)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d name='%s' player=%d maxPlayers=%d reason=out-of-range.",
+                botId, bot->GetName().c_str(), playerId, maxPlayers);
+            return;
+        }
 
         auto existing = m_playerIdToBotId.find(playerId);
         if (existing != m_playerIdToBotId.end() && existing->second != botId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=already-mapped-to-bot-%d.",
+                botId, playerId, existing->second);
             return;
+        }
 
         // A single server slot cannot belong to two bot clients. Likewise,
         // one bot client must never be rebound to a different server slot.
         if (bot->GetPlayerId() != kInvalidId && bot->GetPlayerId() != playerId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d name='%s' newPlayer=%d existingPlayer=%d reason=bot-already-bound.",
+                botId, bot->GetName().c_str(), playerId, bot->GetPlayerId());
             return;
+        }
 
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
@@ -532,9 +572,21 @@ namespace FakeBots
         // gate activation on the nickname, which scripts/server callbacks may
         // already have changed by the time OnPlayerConnect is observed.
         Bot *bot = GetByPlayerId(playerId);
-        if (bot == nullptr || bot->GetState() != BotLifeState::Connecting)
+        if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][RESOLVE] player=%d rejected reason=no-bot-mapping.",
+                playerId);
             return;
+        }
+        if (bot->GetState() != BotLifeState::Connecting)
+        {
+            sampgdk::logprintf("[FakeBots][RESOLVE] player=%d bot=%d name='%s' ignored lifeState=%d.",
+                playerId, bot->GetBotId(), bot->GetName().c_str(), static_cast<int>(bot->GetState()));
+            return;
+        }
 
+        sampgdk::logprintf("[FakeBots][RESOLVE] activating bot=%d name='%s' player=%d.",
+            bot->GetBotId(), bot->GetName().c_str(), playerId);
         ApplySpawnAndActivate(*bot);
         if (!bot->HasConnectForwarded())
         {
@@ -550,10 +602,14 @@ namespace FakeBots
         // Never match an in-flight bot by nickname: a real player may use it.
         if (GetByPlayerId(playerId) != nullptr)
         {
+            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' already mapped to bot.",
+                playerId, playerName.c_str());
             ResolveConnection(playerId, playerName);
             return true;
         }
 
+        sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' stored as pending; awaiting this client's InitGame.",
+            playerId, playerName.c_str());
         m_pendingPlayerConnects[playerId] = playerName;
         m_realPlayers.insert(playerId);
         return false;
@@ -617,7 +673,14 @@ namespace FakeBots
     {
         Bot *bot = GetByBotId(botId);
         if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][TRANSPORT] failure discarded bot=%d code=%d reason=bot-not-found.",
+                botId, reason);
             return;
+        }
+        sampgdk::logprintf("[FakeBots][TRANSPORT] failure queued bot=%d name='%s' player=%d state=%d code=%d.",
+            botId, bot->GetName().c_str(), bot->GetPlayerId(),
+            static_cast<int>(bot->Client().GetState()), reason);
         const uint64_t generation = bot->GetGeneration();
         for (const auto &existing : m_transportFailures)
         {
@@ -647,15 +710,26 @@ namespace FakeBots
     {
         if (m_expectedBotDisconnects.erase(playerId) != 0)
         {
+            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d classified=expected-plugin-disconnect.",
+                playerId, reason);
             m_realPlayers.erase(playerId);
             return;
         }
 
+        auto pendingConnect = m_pendingPlayerConnects.find(playerId);
+        if (pendingConnect != m_pendingPlayerConnects.end())
+            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d name='%s' reason=%d had-pending-connect=yes mapping=no.",
+                playerId, pendingConnect->second.c_str(), reason);
+        else
+            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d pending-connect=no.",
+                playerId, reason);
         m_pendingPlayerConnects.erase(playerId);
         m_pendingSpawnRestores.erase(playerId);
         auto mapIt = m_playerIdToBotId.find(playerId);
         if (mapIt == m_playerIdToBotId.end())
         {
+            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d not mapped to a bot; treating as real/unknown player.",
+                playerId, reason);
             m_realPlayers.erase(playerId);
             return;
         }
@@ -848,6 +922,9 @@ namespace FakeBots
                 // A handshake that never completed (a lost datagram, or a stale peer of the
                 // same ip:port still known to the server) is simply tried again on a brand
                 // new socket; the script only hears about it when every attempt failed.
+                sampgdk::logprintf("[FakeBots][FAILURE-PROCESS] bot=%d name='%s' player=%d code=%d retries=%d clientState=%d.",
+                    botId, bot->GetName().c_str(), playerId, reason, bot->GetConnectRetries(),
+                    static_cast<int>(bot->Client().GetState()));
                 const bool handshakeFailure = reason == NetFail::kAttemptFailed ||
                                               reason == NetFail::kStageTimeoutBase - static_cast<int>(SampBotClient::State::Connecting);
                 if (playerId == kInvalidId && handshakeFailure && bot->GetConnectRetries() < kMaxConnectRetries)
