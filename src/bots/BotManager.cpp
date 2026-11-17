@@ -150,6 +150,7 @@ namespace FakeBots
         }
 
         m_playerIdToBotId.clear();
+        m_pendingBotPlayerIds.clear();
         m_pendingPlayerConnects.clear();
         m_pendingSpawnRestores.clear();
         m_activeBotIds.clear();
@@ -540,6 +541,14 @@ namespace FakeBots
             return;
         }
 
+        auto provisional = m_pendingBotPlayerIds.find(playerId);
+        if (provisional != m_pendingBotPlayerIds.end() && provisional->second != botId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=pending-mapped-to-bot-%d.",
+                botId, playerId, provisional->second);
+            return;
+        }
+
         // A single server slot cannot belong to two bot clients. Likewise,
         // one bot client must never be rebound to a different server slot.
         if (bot->GetPlayerId() != kInvalidId && bot->GetPlayerId() != playerId)
@@ -551,6 +560,7 @@ namespace FakeBots
 
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
+        m_pendingBotPlayerIds.erase(playerId);
         sampgdk::logprintf("[FakeBots] InitGame assigned player %d to bot %d ('%s').",
             playerId, botId, bot->GetName().c_str());
 
@@ -605,9 +615,12 @@ namespace FakeBots
 
     bool BotManager::HandlePlayerConnect(int playerId, const std::string &playerName)
     {
-        // OnPlayerConnect can precede the InitGame RPC. Keep the slot pending
-        // until the corresponding embedded client reports this exact player id.
-        // Never match an in-flight bot by nickname: a real player may use it.
+        // OnPlayerConnect runs before the bot client's InitGame RPC. At this
+        // point the only server-side identity available is the nickname. Match
+        // it only against a currently connected bot client that is specifically
+        // waiting for InitGame. The provisional association is exposed by
+        // IsPlayerBot(), but GetByPlayerId() remains authoritative and returns
+        // a bot only after that same client's InitGame confirms the player id.
         if (GetByPlayerId(playerId) != nullptr)
         {
             sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' already mapped to bot.",
@@ -616,8 +629,45 @@ namespace FakeBots
             return true;
         }
 
-        sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' stored as pending; awaiting this client's InitGame.",
-            playerId, playerName.c_str());
+        const std::string wantedName = NormalizePlayerName(playerName);
+        int matchedBotId = kInvalidId;
+        bool ambiguous = false;
+        for (int botId : m_activeBotIds)
+        {
+            Bot *candidate = GetByBotId(botId);
+            if (candidate == nullptr ||
+                candidate->GetPlayerId() != kInvalidId ||
+                candidate->GetState() != BotLifeState::Connecting ||
+                candidate->Client().GetState() != SampBotClient::State::AwaitingInit ||
+                !candidate->Client().IsConnected() ||
+                NormalizePlayerName(candidate->GetName()) != wantedName)
+                continue;
+
+            if (matchedBotId != kInvalidId)
+            {
+                ambiguous = true;
+                break;
+            }
+            matchedBotId = botId;
+        }
+
+        if (matchedBotId != kInvalidId && !ambiguous)
+        {
+            m_pendingBotPlayerIds[playerId] = matchedBotId;
+            m_pendingPlayerConnects[playerId] = playerName;
+            m_realPlayers.erase(playerId);
+            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' provisionally identified as bot=%d; awaiting InitGame confirmation.",
+                playerId, playerName.c_str(), matchedBotId);
+            return true;
+        }
+
+        if (ambiguous)
+            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' not identified: multiple matching bot handshakes.",
+                playerId, playerName.c_str());
+        else
+            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' stored as real/pending; no matching bot handshake.",
+                playerId, playerName.c_str());
+
         m_pendingPlayerConnects[playerId] = playerName;
         m_realPlayers.insert(playerId);
         return false;
@@ -647,6 +697,17 @@ namespace FakeBots
         sampgdk::logprintf("[FakeBots][DESTROY] requested bot=%d name='%s' player=%d lifeState=%d clientState=%d connected=%s.",
             botId, bot->GetName().c_str(), playerId, static_cast<int>(bot->GetState()),
             static_cast<int>(bot->Client().GetState()), bot->Client().IsConnected() ? "yes" : "no");
+        for (auto it = m_pendingBotPlayerIds.begin(); it != m_pendingBotPlayerIds.end();)
+        {
+            if (it->second == botId)
+            {
+                m_pendingPlayerConnects.erase(it->first);
+                m_realPlayers.erase(it->first);
+                it = m_pendingBotPlayerIds.erase(it);
+            }
+            else
+                ++it;
+        }
         if (bot->GetState() == BotLifeState::Pooled)
         {
             sampgdk::logprintf("[FakeBots][DESTROY] rejected bot=%d reason=pooled.", botId);
@@ -735,7 +796,14 @@ namespace FakeBots
         }
 
         auto pendingConnect = m_pendingPlayerConnects.find(playerId);
-        if (pendingConnect != m_pendingPlayerConnects.end())
+        auto pendingBot = m_pendingBotPlayerIds.find(playerId);
+        if (pendingBot != m_pendingBotPlayerIds.end())
+        {
+            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d classified=provisional-bot bot=%d before-InitGame.",
+                playerId, reason, pendingBot->second);
+            m_pendingBotPlayerIds.erase(pendingBot);
+        }
+        else if (pendingConnect != m_pendingPlayerConnects.end())
             sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d name='%s' reason=%d had-pending-connect=yes mapping=no.",
                 playerId, pendingConnect->second.c_str(), reason);
         else
@@ -791,7 +859,11 @@ namespace FakeBots
 
     bool BotManager::IsPlayerBot(int playerId) const
     {
-        return m_playerIdToBotId.find(playerId) != m_playerIdToBotId.end();
+        // During OnPlayerConnect the server has assigned a player id, but the
+        // bot client has not yet sent InitGame. Report the provisional match
+        // to Pawn while keeping GetByPlayerId() restricted to confirmed bots.
+        return m_playerIdToBotId.find(playerId) != m_playerIdToBotId.end() ||
+               m_pendingBotPlayerIds.find(playerId) != m_pendingBotPlayerIds.end();
     }
 
     bool BotManager::IsRealPlayer(int playerId) const
