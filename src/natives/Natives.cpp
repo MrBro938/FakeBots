@@ -54,15 +54,13 @@ namespace
         {
             // amx_StrParam yields nullptr for an empty string: there is no
             // sensible nickname to invent, so refuse instead of guessing.
-            ((void)0);
-            return static_cast<cell>(kInvalidId);
+            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is empty.");            return static_cast<cell>(kInvalidId);
         }
         const char *rawName = nameBuf;
         const size_t rawNameLength = std::strlen(rawName);
         if (rawNameLength > MAX_PLAYER_NAME)
         {
-            ((void)0);
-            return static_cast<cell>(kInvalidId);
+            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is longer than %d characters.", MAX_PLAYER_NAME);            return static_cast<cell>(kInvalidId);
         }
         std::memcpy(name, rawName, rawNameLength);
         name[rawNameLength] = '\0';
