@@ -137,6 +137,11 @@ namespace FakeBots
 
     void BotManager::Reset()
     {
+        int existingBots = 0;
+        for (const auto &slot : m_bots)
+            if (slot != nullptr)
+                ++existingBots;
+        sampgdk::logprintf("[FakeBots][MANAGER] Reset called; existingBots=%d.", existingBots);
         for (auto &slot : m_bots)
         {
             if (slot)
@@ -169,6 +174,9 @@ namespace FakeBots
     {
         if (m_poolingEnabled == enabled)
             return;
+        sampgdk::logprintf("[FakeBots][MANAGER] SetPoolingEnabled %s -> %s; pooledBots=%u.",
+            m_poolingEnabled ? "true" : "false", enabled ? "true" : "false",
+            static_cast<unsigned>(m_pool.size()));
 
         if (!enabled)
         {
@@ -630,10 +638,20 @@ namespace FakeBots
     bool BotManager::Destroy(int botId)
     {
         Bot *bot = GetByBotId(botId);
-        if (bot == nullptr || bot->GetState() == BotLifeState::Pooled)
+        if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][DESTROY] rejected bot=%d reason=not-found.", botId);
             return false;
-
+        }
         const int playerId = bot->GetPlayerId();
+        sampgdk::logprintf("[FakeBots][DESTROY] requested bot=%d name='%s' player=%d lifeState=%d clientState=%d connected=%s.",
+            botId, bot->GetName().c_str(), playerId, static_cast<int>(bot->GetState()),
+            static_cast<int>(bot->Client().GetState()), bot->Client().IsConnected() ? "yes" : "no");
+        if (bot->GetState() == BotLifeState::Pooled)
+        {
+            sampgdk::logprintf("[FakeBots][DESTROY] rejected bot=%d reason=pooled.", botId);
+            return false;
+        }
         bot->SetState(BotLifeState::Removing);
 
         if (m_poolingEnabled && playerId != kInvalidId && bot->Client().IsConnected())
