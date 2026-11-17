@@ -104,6 +104,7 @@ extern "C"
         {
             bot->Client().ConfirmServerSpawn();
             bot->SetState(BotLifeState::Spawned);
+            BotManager::Get().HandlePlayerSpawn(playerid);
             CallbackDispatcher::Get().OnBotSpawn(bot->GetBotId());
         }
         return true;
