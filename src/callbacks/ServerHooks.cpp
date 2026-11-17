@@ -82,8 +82,10 @@ extern "C"
         char name[MAX_PLAYER_NAME + 1] = {0};
         sampgdk::GetPlayerName(playerid, name, sizeof(name));
         Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
+        const bool pendingBot = BotManager::Get().IsPlayerBot(playerid);
+        const char *mappingState = mappedBot != nullptr ? "yes" : (pendingBot ? "pending-bot" : "pending");
         sampgdk::logprintf("[FakeBots] OnPlayerConnect observed: player=%d name='%s' mapped=%s.",
-            playerid, name, mappedBot != nullptr ? "yes" : "pending");
+            playerid, name, mappingState);
         BotManager::Get().HandlePlayerConnect(playerid, name);
         return true;
     }
