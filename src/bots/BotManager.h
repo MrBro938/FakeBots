@@ -68,7 +68,13 @@ namespace FakeBots
         // and are promoted only when that bot's own client reports InitGame.
         std::unordered_map<int, int> m_pendingBotPlayerIds;
         std::unordered_map<int, std::string> m_pendingPlayerConnects;
-        std::unordered_map<int, uint64_t> m_pendingSpawnRestores;
+        struct PendingSpawnRestore
+        {
+            uint64_t generation = 0;
+            int attemptsRemaining = 0;
+            uint32_t nextAttemptMs = 0;
+        };
+        std::unordered_map<int, PendingSpawnRestore> m_pendingSpawnRestores;
         std::vector<int> m_activeBotIds;
         std::vector<int> m_pool;
         std::unordered_set<int> m_realPlayers;
