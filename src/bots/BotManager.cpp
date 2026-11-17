@@ -504,14 +504,22 @@ namespace FakeBots
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
 
+        // InitGame is the authoritative proof that this exact network client
+        // owns the server player id. Do not make activation depend on observing
+        // OnPlayerConnect: sampgdk's public-call hook can miss that callback when
+        // another plugin has registered an incompatible callback table.
+        std::string playerName;
         auto pending = m_pendingPlayerConnects.find(playerId);
         if (pending != m_pendingPlayerConnects.end())
         {
-            const std::string playerName = pending->second;
+            playerName = pending->second;
             m_pendingPlayerConnects.erase(pending);
-            m_realPlayers.erase(playerId);
-            ResolveConnection(playerId, playerName);
         }
+        m_realPlayers.erase(playerId);
+
+        // Resolve immediately, before HandleInitGame sends RequestClass. This
+        // also covers the case where OnPlayerConnect was not observed at all.
+        ResolveConnection(playerId, playerName);
     }
 
     void BotManager::ResolveConnection(int playerId, const std::string &playerName)
