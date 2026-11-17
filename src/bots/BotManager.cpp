@@ -660,10 +660,15 @@ namespace FakeBots
         if (bot == nullptr)
             return;
 
-        // Pawn's OnPlayerSpawn runs after the plugin observer. Restore the
-        // requested world/interior on the next ProcessTick, after the script
-        // had its chance to initialize the player.
-        m_pendingSpawnRestores[playerId] = bot->GetGeneration();
+        // The plugin observer runs before the gamemode's OnPlayerSpawn.
+        // Re-apply the requested interior after the script has initialized the
+        // player. Some gamemodes/plugins also change the interior during spawn,
+        // so retry briefly until the server reports the requested value.
+        m_pendingSpawnRestores[playerId] = {
+            bot->GetGeneration(),
+            20,
+            NowMs()
+        };
     }
 
     bool BotManager::Destroy(int botId)
@@ -935,22 +940,54 @@ namespace FakeBots
         ProcessStartQueue();
 
         // Restore instance routing after the gamemode's OnPlayerSpawn callback.
+        // Keep retrying for a short window: another spawn handler may overwrite
+        // the interior after our observer has run.
         if (!m_pendingSpawnRestores.empty())
         {
-            std::unordered_map<int, uint64_t> restores;
-            restores.swap(m_pendingSpawnRestores);
-            for (const auto &entry : restores)
+            const uint32_t now = NowMs();
+            for (auto it = m_pendingSpawnRestores.begin(); it != m_pendingSpawnRestores.end();)
             {
-                const int playerId = entry.first;
+                const int playerId = it->first;
+                PendingSpawnRestore &restore = it->second;
                 Bot *bot = GetByPlayerId(playerId);
-                if (bot == nullptr || bot->GetGeneration() != entry.second ||
+
+                if (bot == nullptr || bot->GetGeneration() != restore.generation ||
                     bot->GetState() != BotLifeState::Spawned ||
                     !sampgdk::IsPlayerConnected(playerId))
+                {
+                    it = m_pendingSpawnRestores.erase(it);
                     continue;
+                }
+
+                if (static_cast<int32_t>(now - restore.nextAttemptMs) < 0)
+                {
+                    ++it;
+                    continue;
+                }
 
                 const PendingSpawn &spawn = bot->GetPendingSpawn();
                 sampgdk::SetPlayerVirtualWorld(playerId, spawn.virtualWorld);
                 sampgdk::SetPlayerInterior(playerId, spawn.interior);
+
+                const int actualInterior = sampgdk::GetPlayerInterior(playerId);
+                if (actualInterior == spawn.interior)
+                {
+                    it = m_pendingSpawnRestores.erase(it);
+                    continue;
+                }
+
+                if (--restore.attemptsRemaining <= 0)
+                {
+                    sampgdk::logprintf(
+                        "[FakeBots][SPAWN] interior restore failed bot=%d player=%d expected=%d actual=%d.",
+                        bot->GetBotId(), playerId, spawn.interior, actualInterior);
+                    it = m_pendingSpawnRestores.erase(it);
+                    continue;
+                }
+
+                // Tick is frequent; 100 ms avoids flooding the server with RPCs.
+                restore.nextAttemptMs = now + 100;
+                ++it;
             }
         }
 
