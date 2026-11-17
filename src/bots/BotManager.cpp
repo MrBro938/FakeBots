@@ -802,8 +802,13 @@ namespace FakeBots
             sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d classified=provisional-bot bot=%d before-InitGame.",
                 playerId, reason, pendingBot->second);
             m_pendingBotPlayerIds.erase(pendingBot);
+            m_pendingPlayerConnects.erase(playerId);
+            m_pendingSpawnRestores.erase(playerId);
+            m_realPlayers.erase(playerId);
+            return;
         }
-        else if (pendingConnect != m_pendingPlayerConnects.end())
+
+        if (pendingConnect != m_pendingPlayerConnects.end())
             sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d name='%s' reason=%d had-pending-connect=yes mapping=no.",
                 playerId, pendingConnect->second.c_str(), reason);
         else
