@@ -39,7 +39,7 @@ namespace FakeBots
     };
 
     // Pending spawn parameters requested via FakeBotCreate(), applied the
-    // moment the NPC connection completes and OnPlayerConnect fires for it.
+    // moment the bot's own RakNet connection is matched to its server player id.
     struct PendingSpawn
     {
         int   skin        = 0;
