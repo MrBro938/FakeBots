@@ -789,8 +789,8 @@ namespace FakeBots
         // Restore instance routing after the gamemode's OnPlayerSpawn callback.
         if (!m_pendingSpawnRestores.empty())
         {
-            const auto restores = std::move(m_pendingSpawnRestores);
-            m_pendingSpawnRestores.clear();
+            std::unordered_map<int, uint64_t> restores;
+            restores.swap(m_pendingSpawnRestores);
             for (const auto &entry : restores)
             {
                 const int playerId = entry.first;
