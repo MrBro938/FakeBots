@@ -973,9 +973,6 @@ namespace FakeBots
 
                 if (--restore.attemptsRemaining <= 0)
                 {
-                    sampgdk::logprintf(
-                        "[FakeBots][SPAWN] interior restore failed bot=%d player=%d expected=%d actual=%d.",
-                        bot->GetBotId(), playerId, spawn.interior, actualInterior);
                     it = m_pendingSpawnRestores.erase(it);
                     continue;
                 }
