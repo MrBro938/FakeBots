@@ -8,12 +8,8 @@
 #    3. packages everything a server owner needs and creates the GitHub release for the tag with
 #       the repository secret PERSONAL_TOKEN.
 #
-#  Setup (once): Settings -> Secrets and variables -> Actions -> New repository secret
-#                name PERSONAL_TOKEN, value = a personal access token that may create releases
-#                (classic: scope "repo"; fine-grained: "Contents: Read and write" on this repo).
-#
-#  "Run workflow" (workflow_dispatch) runs steps 1-2 on any branch and keeps the builds as
-#  artifacts; it never publishes a release.
+#  "Run workflow" runs steps 1-2 on any branch and keeps the builds as artifacts.
+#  Artifacts from manual builds are cleaned up after they reach 12 hours of age.
 # =============================================================================
 name: Release
 
@@ -32,28 +28,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ---------------------------------------------------------------------------
   audit:
     name: Source audit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - name: No NPC code paths, no forbidden APIs
         run: python3 tools/source_audit.py
-
       - name: Tag matches the plugin version
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          plugin_version="$(grep -oP 'FAKEBOTS_VERSION_STRING\s+"\K[^"]+' src/core/Common.h)"
+          plugin_version="$(grep -oP 'FAKEBOTS_VERSION_STRING\\s+"\\K[^"]+' src/core/Common.h)"
           tag_version="${GITHUB_REF_NAME#v}"
           echo "tag: ${GITHUB_REF_NAME}   plugin reports: ${plugin_version}"
           if [ "${plugin_version}" != "${tag_version}" ]; then
             echo "::warning title=Tag and plugin version differ::The tag is ${GITHUB_REF_NAME} but src/core/Common.h says ${plugin_version}. The binaries will print ${plugin_version} when a server loads them."
           fi
 
-  # ---------------------------------------------------------------------------
   build-linux:
     name: Build (Linux x86)
     needs: audit
@@ -61,18 +53,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - name: Install the 32-bit toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake gcc-multilib g++-multilib
-
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFAKEBOTS_BUILD_PROBE=ON
-
       - name: Build
         run: cmake --build build --parallel --target FakeBots
-
       - name: Check the result
         run: |
           file build/FakeBots.so
@@ -81,14 +69,13 @@ jobs:
           readelf -d build/FakeBots.so | grep NEEDED || true
           echo "--- exported plugin entry points:"
           nm -D --defined-only build/FakeBots.so | grep -E ' (Supports|Load|Unload|AmxLoad|AmxUnload|ProcessTick)$'
-
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86
           path: build/FakeBots.so
           if-no-files-found: error
+          retention-days: 1
 
-  # ---------------------------------------------------------------------------
   build-windows:
     name: Build (Windows x86)
     needs: audit
@@ -96,18 +83,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - name: Install the MinGW-w64 (i686) cross compiler
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake g++-mingw-w64-i686
-
       - name: Configure
         run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-i686.cmake -DCMAKE_BUILD_TYPE=Release
-
       - name: Build
         run: cmake --build build --parallel
-
       - name: Check the result (self-contained 32-bit DLL)
         run: |
           file build/FakeBots.dll
@@ -117,21 +100,20 @@ jobs:
           echo "${imports}"
           # Only what every Windows has. A MinGW runtime DLL here would make the plugin fail to
           # load on a server machine that does not ship it.
-          unexpected="$(echo "${imports}" | grep -viE '^(kernel32|ws2_32|msvcrt|user32|advapi32)\.dll$' || true)"
+          unexpected="$(echo "${imports}" | grep -viE '^(kernel32|ws2_32|msvcrt|user32|advapi32)\\.dll$' || true)"
           if [ -n "${unexpected}" ]; then
             echo "::error title=Unexpected DLL dependency::${unexpected}"
             exit 1
           fi
           echo "--- exported plugin entry points:"
-          i686-w64-mingw32-objdump -p build/FakeBots.dll | grep -E '\b(Supports|Load|Unload|AmxLoad|AmxUnload|ProcessTick)\b'
-
+          i686-w64-mingw32-objdump -p build/FakeBots.dll | grep -E '\\b(Supports|Load|Unload|AmxLoad|AmxUnload|ProcessTick)\\b'
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86
           path: build/FakeBots.dll
           if-no-files-found: error
+          retention-days: 1
 
-  # ---------------------------------------------------------------------------
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/')
@@ -149,24 +131,20 @@ jobs:
             echo "::error title=PERSONAL_TOKEN is not set::Create the repository secret PERSONAL_TOKEN (Settings -> Secrets and variables -> Actions) holding a token that may create releases, then re-run this workflow."
             exit 1
           fi
-
       - uses: actions/checkout@v4
-
       - uses: actions/download-artifact@v4
         with:
           name: linux-x86
           path: artifacts/linux-x86
-
       - uses: actions/download-artifact@v4
         with:
           name: windows-x86
           path: artifacts/windows-x86
-
       - name: Package the release files
         run: |
-          python3 tools/package_release.py --tag "${TAG}" \
-            --linux   artifacts/linux-x86/FakeBots.so \
-            --windows artifacts/windows-x86/FakeBots.dll \
+          python3 tools/package_release.py --tag "${TAG}" \\
+            --linux   artifacts/linux-x86/FakeBots.so \\
+            --windows artifacts/windows-x86/FakeBots.dll \\
             --out dist
           python3 tools/release_notes.py --tag "${TAG}" > notes.md
           echo "--- release files:"
@@ -174,23 +152,20 @@ jobs:
           echo "--- checksums:"
           cat dist/SHA256SUMS.txt
           (cd dist && sha256sum -c SHA256SUMS.txt)
-
       - name: Create (or update) the GitHub release
         run: |
           set -euo pipefail
-          # "v1.2.3-rc1", "1.0.0-beta" ... are pre-releases
           prerelease=false
           case "${TAG}" in *-*) prerelease=true ;; esac
-
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists - replacing its files and text."
             gh release upload "${TAG}" dist/* --clobber
             gh release edit "${TAG}" --title "FakeBots ${TAG}" --notes-file notes.md --prerelease="${prerelease}"
           else
-            gh release create "${TAG}" dist/* \
-              --title "FakeBots ${TAG}" \
-              --notes-file notes.md \
-              --prerelease="${prerelease}" \
+            gh release create "${TAG}" dist/* \\
+              --title "FakeBots ${TAG}" \\
+              --notes-file notes.md \\
+              --prerelease="${prerelease}" \\
               --verify-tag
           fi
-          gh release view "${TAG}" --json url,assets --jq '"Released: \(.url)\n" + ([.assets[].name] | join("\n"))'
+          gh release view "${TAG}" --json url,assets --jq '"Released: \\(.url)\\n" + ([.assets[].name] | join("\\n"))'
