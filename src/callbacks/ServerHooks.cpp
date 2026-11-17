@@ -87,16 +87,12 @@ extern "C"
 
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDisconnect(int playerid, int reason)
     {
-        Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         BotManager::Get().HandlePlayerDisconnect(playerid, reason);
         return true;
     }
 
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerRequestClass(int playerid, int classid)
     {
-        Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         BotManager::Get().HandlePlayerRequestClass(playerid, classid);
         return true;
     }
@@ -104,7 +100,6 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerSpawn(int playerid)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         if (bot != nullptr)
         {
             bot->Client().ConfirmServerSpawn();
@@ -118,7 +113,6 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDeath(int playerid, int killerid, int reason)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         if (bot != nullptr)
         {
             bot->SetState(BotLifeState::Dead);
@@ -130,7 +124,6 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerStateChange(int playerid, int newstate, int oldstate)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotStateChange(bot->GetBotId(), newstate, oldstate);
         return true;
@@ -139,7 +132,6 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerEnterVehicle(int playerid, int vehicleid, bool ispassenger)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotEnterVehicle(bot->GetBotId(), vehicleid, ispassenger);
         return true;
@@ -148,7 +140,6 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerExitVehicle(int playerid, int vehicleid)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotExitVehicle(bot->GetBotId(), vehicleid);
         return true;
