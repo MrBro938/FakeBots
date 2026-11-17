@@ -19,7 +19,7 @@ jobs:
         with:
           script: |
             const cutoff = Date.now() - 12 * 60 * 60 * 1000;
-            const workflowPath = ".github/workflows/release.yml";
+            const workflowPaths = new Set([".github/workflows/release.yml", ".github/workflows/build.yml"]);
             const { owner, repo } = context.repo;
 
             for (let page = 1; ; page++) {
@@ -45,7 +45,7 @@ jobs:
                   run_id: artifact.workflow_run.id,
                 });
 
-                if (run.data.path !== workflowPath || run.data.event !== "workflow_dispatch") continue;
+                if (!workflowPaths.has(run.data.path) || run.data.event !== "workflow_dispatch") continue;
 
                 core.info(`Deleting ${artifact.name} (created ${artifact.created_at}, id ${artifact.id})`);
                 await github.rest.actions.deleteArtifact({
