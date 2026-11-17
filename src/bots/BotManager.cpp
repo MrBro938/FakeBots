@@ -516,19 +516,15 @@ namespace FakeBots
 
     void BotManager::ResolveConnection(int playerId, const std::string &playerName)
     {
-        // A bot is identified only by the player id reported by its own
-        // RakNet client in InitGame. The name is checked as a consistency
-        // guard, never used to discover or select a bot.
+        (void)playerName;
+
+        // The player id is reported by this bot's own RakNet client in its
+        // InitGame RPC. That per-client association is authoritative: do not
+        // gate activation on the nickname, which scripts/server callbacks may
+        // already have changed by the time OnPlayerConnect is observed.
         Bot *bot = GetByPlayerId(playerId);
         if (bot == nullptr || bot->GetState() != BotLifeState::Connecting)
             return;
-
-        if (NormalizePlayerName(bot->GetName()) != NormalizePlayerName(playerName))
-        {
-            sampgdk::logprintf("[FakeBots] Player id %d was reported by bot '%s', but the server assigned nickname '%s'.",
-                playerId, bot->GetName().c_str(), playerName.c_str());
-            return;
-        }
 
         ApplySpawnAndActivate(*bot);
         if (!bot->HasConnectForwarded())
