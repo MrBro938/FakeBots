@@ -1,0 +1,59 @@
+name: Cleanup old build artifacts
+
+on:
+  schedule:
+    # Runs hourly; artifacts are deleted on the first run after they reach 12 hours.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    name: Delete artifacts older than 12 hours
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Remove expired manual build artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+            const workflowPath = ".github/workflows/release.yml";
+            const { owner, repo } = context.repo;
+
+            for (let page = 1; ; page++) {
+              const response = await github.rest.actions.listArtifactsForRepo({
+                owner,
+                repo,
+                per_page: 100,
+                page,
+              });
+
+              if (response.data.artifacts.length === 0) break;
+
+              for (const artifact of response.data.artifacts) {
+                // Only remove build outputs created by the manual workflow_dispatch run.
+                if (!["linux-x86", "windows-x86"].includes(artifact.name)) continue;
+
+                const createdAt = Date.parse(artifact.created_at);
+                if (createdAt > cutoff) continue;
+
+                const run = await github.rest.actions.getWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: artifact.workflow_run.id,
+                });
+
+                if (run.data.path !== workflowPath || run.data.event !== "workflow_dispatch") continue;
+
+                core.info(`Deleting ${artifact.name} (created ${artifact.created_at}, id ${artifact.id})`);
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: artifact.id,
+                });
+              }
+
+              if (response.data.artifacts.length < 100) break;
+            }
