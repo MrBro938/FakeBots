@@ -88,8 +88,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDisconnect(int playerid, int reason)
     {
         Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots] OnPlayerDisconnect observed: player=%d reason=%d bot=%s.",
-            playerid, reason, mappedBot != nullptr ? mappedBot->GetName().c_str() : "no");
+        ((void)0);
         BotManager::Get().HandlePlayerDisconnect(playerid, reason);
         return true;
     }
@@ -97,8 +96,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerRequestClass(int playerid, int classid)
     {
         Bot *mappedBot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots] OnPlayerRequestClass observed: player=%d class=%d bot=%s.",
-            playerid, classid, mappedBot != nullptr ? mappedBot->GetName().c_str() : "no");
+        ((void)0);
         BotManager::Get().HandlePlayerRequestClass(playerid, classid);
         return true;
     }
@@ -106,8 +104,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerSpawn(int playerid)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots][CALLBACK] OnPlayerSpawn player=%d bot=%s.",
-            playerid, bot != nullptr ? bot->GetName().c_str() : "no");
+        ((void)0);
         if (bot != nullptr)
         {
             bot->Client().ConfirmServerSpawn();
@@ -121,8 +118,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDeath(int playerid, int killerid, int reason)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots][CALLBACK] OnPlayerDeath player=%d killer=%d reason=%d bot=%s.",
-            playerid, killerid, reason, bot != nullptr ? bot->GetName().c_str() : "no");
+        ((void)0);
         if (bot != nullptr)
         {
             bot->SetState(BotLifeState::Dead);
@@ -134,8 +130,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerStateChange(int playerid, int newstate, int oldstate)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots][CALLBACK] OnPlayerStateChange player=%d old=%d new=%d bot=%s.",
-            playerid, oldstate, newstate, bot != nullptr ? bot->GetName().c_str() : "no");
+        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotStateChange(bot->GetBotId(), newstate, oldstate);
         return true;
@@ -144,8 +139,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerEnterVehicle(int playerid, int vehicleid, bool ispassenger)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots][CALLBACK] OnPlayerEnterVehicle player=%d vehicle=%d passenger=%s bot=%s.",
-            playerid, vehicleid, ispassenger ? "yes" : "no", bot != nullptr ? bot->GetName().c_str() : "no");
+        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotEnterVehicle(bot->GetBotId(), vehicleid, ispassenger);
         return true;
@@ -154,8 +148,7 @@ extern "C"
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerExitVehicle(int playerid, int vehicleid)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
-        sampgdk::logprintf("[FakeBots][CALLBACK] OnPlayerExitVehicle player=%d vehicle=%d bot=%s.",
-            playerid, vehicleid, bot != nullptr ? bot->GetName().c_str() : "no");
+        ((void)0);
         if (bot != nullptr)
             CallbackDispatcher::Get().OnBotExitVehicle(bot->GetBotId(), vehicleid);
         return true;
