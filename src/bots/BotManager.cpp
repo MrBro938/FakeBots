@@ -737,14 +737,9 @@ namespace FakeBots
         Bot *bot = GetByBotId(botId);
         if (bot == nullptr)
         {
-            sampgdk::logprintf("[FakeBots][TRANSPORT] failure discarded bot=%d code=%d reason=bot-not-found.",
-                botId, reason);
-            return;
+                        return;
         }
-        sampgdk::logprintf("[FakeBots][TRANSPORT] failure queued bot=%d name='%s' player=%d state=%d code=%d.",
-            botId, bot->GetName().c_str(), bot->GetPlayerId(),
-            static_cast<int>(bot->Client().GetState()), reason);
-        const uint64_t generation = bot->GetGeneration();
+                const uint64_t generation = bot->GetGeneration();
         for (const auto &existing : m_transportFailures)
         {
             if (existing.botId == botId && existing.generation == generation)
@@ -1028,10 +1023,7 @@ namespace FakeBots
                 // A handshake that never completed (a lost datagram, or a stale peer of the
                 // same ip:port still known to the server) is simply tried again on a brand
                 // new socket; the script only hears about it when every attempt failed.
-                sampgdk::logprintf("[FakeBots][FAILURE-PROCESS] bot=%d name='%s' player=%d code=%d retries=%d clientState=%d.",
-                    botId, bot->GetName().c_str(), playerId, reason, bot->GetConnectRetries(),
-                    static_cast<int>(bot->Client().GetState()));
-                const bool handshakeFailure = reason == NetFail::kAttemptFailed ||
+                                const bool handshakeFailure = reason == NetFail::kAttemptFailed ||
                                               reason == NetFail::kStageTimeoutBase - static_cast<int>(SampBotClient::State::Connecting);
                 if (playerId == kInvalidId && handshakeFailure && bot->GetConnectRetries() < kMaxConnectRetries)
                 {
