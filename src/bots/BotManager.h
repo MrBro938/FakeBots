@@ -61,7 +61,12 @@ namespace FakeBots
         BotManager() = default;
 
         std::array<std::unique_ptr<Bot>, kMaxBots> m_bots{};
+        // Definitive mappings are created by the bot client's InitGame RPC.
         std::unordered_map<int, int> m_playerIdToBotId;
+        // Provisional mappings let FakeBotIsPlayer work during OnPlayerConnect.
+        // They are matched by the unique nickname requested for an in-flight bot
+        // and are promoted only when that bot's own client reports InitGame.
+        std::unordered_map<int, int> m_pendingBotPlayerIds;
         std::unordered_map<int, std::string> m_pendingPlayerConnects;
         std::unordered_map<int, uint64_t> m_pendingSpawnRestores;
         std::vector<int> m_activeBotIds;
