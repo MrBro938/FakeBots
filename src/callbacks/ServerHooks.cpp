@@ -74,8 +74,8 @@ extern "C"
 
     // ------------------------------------------------------------------
     // Connection handshake: FakeBots are ordinary network players, not
-    // server-side NPCs. The mapping is established by the real RakNet
-    // connection and resolved here as soon as the server emits OnPlayerConnect.
+    // server-side NPCs. OnPlayerConnect may arrive before the embedded client's
+    // InitGame RPC, so the slot is held pending until that client confirms its id.
     // ------------------------------------------------------------------
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerConnect(int playerid)
     {
