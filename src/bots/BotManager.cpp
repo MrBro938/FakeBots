@@ -141,7 +141,7 @@ namespace FakeBots
         for (const auto &slot : m_bots)
             if (slot != nullptr)
                 ++existingBots;
-        sampgdk::logprintf("[FakeBots][MANAGER] Reset called; existingBots=%d.", existingBots);
+        ((void)0);
         for (auto &slot : m_bots)
         {
             if (slot)
@@ -175,9 +175,7 @@ namespace FakeBots
     {
         if (m_poolingEnabled == enabled)
             return;
-        sampgdk::logprintf("[FakeBots][MANAGER] SetPoolingEnabled %s -> %s; pooledBots=%u.",
-            m_poolingEnabled ? "true" : "false", enabled ? "true" : "false",
-            static_cast<unsigned>(m_pool.size()));
+        ((void)0);
 
         if (!enabled)
         {
@@ -232,13 +230,10 @@ namespace FakeBots
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
             {
-                sampgdk::logprintf("[FakeBots][BIND] callback ignored bot=%d player=%d reason=stale-generation.",
-                    botId, playerId);
+                ((void)0);
                 return;
             }
-            sampgdk::logprintf("[FakeBots][BIND] callback bot=%d name='%s' player=%d generation=%llu.",
-                botId, current->GetName().c_str(), playerId,
-                static_cast<unsigned long long>(generation));
+            ((void)0);
             BindNetworkPlayer(botId, playerId);
         });
         bot.Client().SetTransportCallback([this, botId, generation](int reason)
@@ -246,13 +241,10 @@ namespace FakeBots
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
             {
-                sampgdk::logprintf("[FakeBots][TRANSPORT] callback ignored bot=%d code=%d reason=stale-generation.",
-                    botId, reason);
+                ((void)0);
                 return;
             }
-            sampgdk::logprintf("[FakeBots][TRANSPORT] callback bot=%d name='%s' player=%d state=%d code=%d.",
-                botId, current->GetName().c_str(), current->GetPlayerId(),
-                static_cast<int>(current->Client().GetState()), reason);
+            ((void)0);
             HandleTransportFailure(botId, reason);
         });
     }
@@ -461,9 +453,7 @@ namespace FakeBots
                 config.password = password;
         }
 
-        sampgdk::logprintf("[FakeBots][CONNECT-START] bot=%d name='%s' endpoint=%s:%u retries=%d.",
-            bot.GetBotId(), bot.GetName().c_str(), config.host.c_str(),
-            static_cast<unsigned>(config.port), bot.GetConnectRetries());
+        ((void)0);
         if (config.port == 0)
         {
             sampgdk::logprintf("[FakeBots] Cannot connect '%s': the server port is unavailable.", bot.GetName().c_str());
@@ -502,9 +492,7 @@ namespace FakeBots
             if (bot == nullptr || bot->GetGeneration() != next.generation)
                 continue; // destroyed before it got its turn
 
-            sampgdk::logprintf("[FakeBots][QUEUE] starting bot=%d name='%s' inFlight=%d queued=%u.",
-                next.botId, bot->GetName().c_str(), inFlight,
-                static_cast<unsigned>(m_startQueue.size()));
+            ((void)0);
             if (!StartBotConnection(*bot))
             {
                 sampgdk::logprintf("[FakeBots][QUEUE] start failed bot=%d name='%s'.",
@@ -561,8 +549,7 @@ namespace FakeBots
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
         m_pendingBotPlayerIds.erase(playerId);
-        sampgdk::logprintf("[FakeBots] InitGame assigned player %d to bot %d ('%s').",
-            playerId, botId, bot->GetName().c_str());
+        ((void)0);
 
         // InitGame is the authoritative proof that this exact network client
         // owns the server player id. Activation must not depend on the relative
@@ -598,13 +585,11 @@ namespace FakeBots
         }
         if (bot->GetState() != BotLifeState::Connecting)
         {
-            sampgdk::logprintf("[FakeBots][RESOLVE] player=%d bot=%d name='%s' ignored lifeState=%d.",
-                playerId, bot->GetBotId(), bot->GetName().c_str(), static_cast<int>(bot->GetState()));
+            ((void)0);
             return;
         }
 
-        sampgdk::logprintf("[FakeBots][RESOLVE] activating bot=%d name='%s' player=%d.",
-            bot->GetBotId(), bot->GetName().c_str(), playerId);
+        ((void)0);
         ApplySpawnAndActivate(*bot);
         if (!bot->HasConnectForwarded())
         {
@@ -623,8 +608,7 @@ namespace FakeBots
         // a bot only after that same client's InitGame confirms the player id.
         if (GetByPlayerId(playerId) != nullptr)
         {
-            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' already mapped to bot.",
-                playerId, playerName.c_str());
+            ((void)0);
             ResolveConnection(playerId, playerName);
             return true;
         }
@@ -656,17 +640,14 @@ namespace FakeBots
             m_pendingBotPlayerIds[playerId] = matchedBotId;
             m_pendingPlayerConnects[playerId] = playerName;
             m_realPlayers.erase(playerId);
-            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' provisionally identified as bot=%d; awaiting InitGame confirmation.",
-                playerId, playerName.c_str(), matchedBotId);
+            ((void)0);
             return true;
         }
 
         if (ambiguous)
-            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' not identified: multiple matching bot handshakes.",
-                playerId, playerName.c_str());
+            ((void)0);
         else
-            sampgdk::logprintf("[FakeBots][CONNECT] player=%d name='%s' stored as real/pending; no matching bot handshake.",
-                playerId, playerName.c_str());
+            ((void)0);
 
         m_pendingPlayerConnects[playerId] = playerName;
         m_realPlayers.insert(playerId);
@@ -694,9 +675,7 @@ namespace FakeBots
             return false;
         }
         const int playerId = bot->GetPlayerId();
-        sampgdk::logprintf("[FakeBots][DESTROY] requested bot=%d name='%s' player=%d lifeState=%d clientState=%d connected=%s.",
-            botId, bot->GetName().c_str(), playerId, static_cast<int>(bot->GetState()),
-            static_cast<int>(bot->Client().GetState()), bot->Client().IsConnected() ? "yes" : "no");
+        ((void)0);
         for (auto it = m_pendingBotPlayerIds.begin(); it != m_pendingBotPlayerIds.end();)
         {
             if (it->second == botId)
@@ -789,8 +768,7 @@ namespace FakeBots
     {
         if (m_expectedBotDisconnects.erase(playerId) != 0)
         {
-            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d classified=expected-plugin-disconnect.",
-                playerId, reason);
+            ((void)0);
             m_realPlayers.erase(playerId);
             return;
         }
@@ -799,8 +777,7 @@ namespace FakeBots
         auto pendingBot = m_pendingBotPlayerIds.find(playerId);
         if (pendingBot != m_pendingBotPlayerIds.end())
         {
-            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d classified=provisional-bot bot=%d before-InitGame.",
-                playerId, reason, pendingBot->second);
+            ((void)0);
             m_pendingBotPlayerIds.erase(pendingBot);
             m_pendingPlayerConnects.erase(playerId);
             m_pendingSpawnRestores.erase(playerId);
@@ -809,18 +786,15 @@ namespace FakeBots
         }
 
         if (pendingConnect != m_pendingPlayerConnects.end())
-            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d name='%s' reason=%d had-pending-connect=yes mapping=no.",
-                playerId, pendingConnect->second.c_str(), reason);
+            ((void)0);
         else
-            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d pending-connect=no.",
-                playerId, reason);
+            ((void)0);
         m_pendingPlayerConnects.erase(playerId);
         m_pendingSpawnRestores.erase(playerId);
         auto mapIt = m_playerIdToBotId.find(playerId);
         if (mapIt == m_playerIdToBotId.end())
         {
-            sampgdk::logprintf("[FakeBots][DISCONNECT] player=%d reason=%d not mapped to a bot; treating as real/unknown player.",
-                playerId, reason);
+            ((void)0);
             m_realPlayers.erase(playerId);
             return;
         }
