@@ -279,9 +279,9 @@ namespace FakeBots
             return kInvalidId;
         }
 
-        // Never let the nickname resolver ambiguously bind a real player's
-        // OnPlayerConnect callback to a bot session. SA-MP nicknames are
-        // effectively case-insensitive for uniqueness, so compare folded ASCII.
+        // Nicknames are checked only for server-side uniqueness. A network
+        // connection is never assigned to a bot by name; its player id must
+        // come from that bot client's own InitGame RPC.
         int pooledMatchBotId = kInvalidId;
         if (m_poolingEnabled)
         {
