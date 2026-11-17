@@ -145,6 +145,8 @@ namespace FakeBots
         }
 
         m_playerIdToBotId.clear();
+        m_pendingPlayerConnects.clear();
+        m_pendingSpawnRestores.clear();
         m_activeBotIds.clear();
         m_pool.clear();
         m_expectedBotDisconnects.clear();
@@ -494,66 +496,74 @@ namespace FakeBots
         if (existing != m_playerIdToBotId.end() && existing->second != botId)
             return;
 
+        // A single server slot cannot belong to two bot clients. Likewise,
+        // one bot client must never be rebound to a different server slot.
+        if (bot->GetPlayerId() != kInvalidId && bot->GetPlayerId() != playerId)
+            return;
+
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
+
+        auto pending = m_pendingPlayerConnects.find(playerId);
+        if (pending != m_pendingPlayerConnects.end())
+        {
+            const std::string playerName = pending->second;
+            m_pendingPlayerConnects.erase(pending);
+            m_realPlayers.erase(playerId);
+            ResolveConnection(playerId, playerName);
+        }
     }
 
     void BotManager::ResolveConnection(int playerId, const std::string &playerName)
     {
-        // Fast path: transport already told us the player slot.
-        if (Bot *mapped = GetByPlayerId(playerId))
+        // A bot is identified only by the player id reported by its own
+        // RakNet client in InitGame. The name is checked as a consistency
+        // guard, never used to discover or select a bot.
+        Bot *bot = GetByPlayerId(playerId);
+        if (bot == nullptr || bot->GetState() != BotLifeState::Connecting)
+            return;
+
+        if (NormalizePlayerName(bot->GetName()) != NormalizePlayerName(playerName))
         {
-            if (mapped->GetState() == BotLifeState::Connecting)
-            {
-                ApplySpawnAndActivate(*mapped);
-                if (!mapped->HasConnectForwarded())
-                {
-                    mapped->MarkConnectForwarded();
-                    CallbackDispatcher::Get().OnBotConnect(mapped->GetBotId());
-                }
-            }
+            sampgdk::logprintf("[FakeBots] Player id %d was reported by bot '%s', but the server assigned nickname '%s'.",
+                playerId, bot->GetName().c_str(), playerName.c_str());
             return;
         }
 
-        // The server's OnPlayerConnect may run before ProcessTick gets a
-        // chance to consume ID_CONNECTION_REQUEST_ACCEPTED. Match the exact
-        // unique nickname and bind the real server player id here.
-        for (int botId : m_activeBotIds)
+        ApplySpawnAndActivate(*bot);
+        if (!bot->HasConnectForwarded())
         {
-            Bot *bot = GetByBotId(botId);
-            if (bot == nullptr || bot->GetState() != BotLifeState::Connecting)
-                continue;
-            if (bot->GetName() != playerName)
-                continue;
-
-            BindNetworkPlayer(botId, playerId);
-            ApplySpawnAndActivate(*bot);
-            if (!bot->HasConnectForwarded())
-            {
-                bot->MarkConnectForwarded();
-                CallbackDispatcher::Get().OnBotConnect(botId);
-            }
-            return;
+            bot->MarkConnectForwarded();
+            CallbackDispatcher::Get().OnBotConnect(bot->GetBotId());
         }
     }
 
     bool BotManager::HandlePlayerConnect(int playerId, const std::string &playerName)
     {
+        // OnPlayerConnect can precede the InitGame RPC. Keep the slot pending
+        // until the corresponding embedded client reports this exact player id.
+        // Never match an in-flight bot by nickname: a real player may use it.
         if (GetByPlayerId(playerId) != nullptr)
-            return true;
-
-        for (int botId : m_activeBotIds)
         {
-            Bot *bot = GetByBotId(botId);
-            if (bot != nullptr && bot->GetState() == BotLifeState::Connecting && bot->GetName() == playerName)
-            {
-                ResolveConnection(playerId, playerName);
-                return true;
-            }
+            ResolveConnection(playerId, playerName);
+            return true;
         }
 
+        m_pendingPlayerConnects[playerId] = playerName;
         m_realPlayers.insert(playerId);
         return false;
+    }
+
+    void BotManager::HandlePlayerSpawn(int playerId)
+    {
+        Bot *bot = GetByPlayerId(playerId);
+        if (bot == nullptr)
+            return;
+
+        // Pawn's OnPlayerSpawn runs after the plugin observer. Restore the
+        // requested world/interior on the next ProcessTick, after the script
+        // had its chance to initialize the player.
+        m_pendingSpawnRestores[playerId] = bot->GetGeneration();
     }
 
     bool BotManager::Destroy(int botId)
@@ -636,6 +646,8 @@ namespace FakeBots
             return;
         }
 
+        m_pendingPlayerConnects.erase(playerId);
+        m_pendingSpawnRestores.erase(playerId);
         auto mapIt = m_playerIdToBotId.find(playerId);
         if (mapIt == m_playerIdToBotId.end())
         {
@@ -773,6 +785,26 @@ namespace FakeBots
     void BotManager::Tick()
     {
         ProcessStartQueue();
+
+        // Restore instance routing after the gamemode's OnPlayerSpawn callback.
+        if (!m_pendingSpawnRestores.empty())
+        {
+            const auto restores = std::move(m_pendingSpawnRestores);
+            m_pendingSpawnRestores.clear();
+            for (const auto &entry : restores)
+            {
+                const int playerId = entry.first;
+                Bot *bot = GetByPlayerId(playerId);
+                if (bot == nullptr || bot->GetGeneration() != entry.second ||
+                    bot->GetState() != BotLifeState::Spawned ||
+                    !sampgdk::IsPlayerConnected(playerId))
+                    continue;
+
+                const PendingSpawn &spawn = bot->GetPendingSpawn();
+                sampgdk::SetPlayerVirtualWorld(playerId, spawn.virtualWorld);
+                sampgdk::SetPlayerInterior(playerId, spawn.interior);
+            }
+        }
 
         // Pump every RakNet client even while pooled/connecting. RakNet does
         // network I/O on its own thread, but RPC dispatch and lifecycle
