@@ -503,6 +503,8 @@ namespace FakeBots
 
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
+        sampgdk::logprintf("[FakeBots] InitGame assigned player %d to bot %d ('%s').",
+            playerId, botId, bot->GetName().c_str());
 
         // InitGame is the authoritative proof that this exact network client
         // owns the server player id. Do not make activation depend on observing
