@@ -208,6 +208,30 @@ namespace
     // --------------------------------------------------------------------
     // Explicit position / velocity for headless-bot physics
     // --------------------------------------------------------------------
+    cell AMX_NATIVE_CALL n_FakeBotPause(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 1)) return 0;
+        Bot *bot = RequireBot(params[1]);
+        return bot != nullptr && bot->Client().SetPaused(true) ? 1 : 0;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotResume(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 1)) return 0;
+        Bot *bot = RequireBot(params[1]);
+        return bot != nullptr && bot->Client().SetPaused(false) ? 1 : 0;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotIsPaused(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 1)) return 0;
+        Bot *bot = RequireBot(params[1]);
+        return bot != nullptr && bot->Client().IsPaused() ? 1 : 0;
+    }
+
     cell AMX_NATIVE_CALL n_FakeBotSetPosition(AMX *amx, cell *params)
     {
         (void)amx;
@@ -1209,6 +1233,9 @@ namespace FakeBots
                 { "FakeBotGetPlayerID",           n_FakeBotGetPlayerID },
                 { "FakeBotGetID",              n_FakeBotGetID },
                 { "FakeBotIsPlayer",        n_FakeBotIsPlayer },
+                { "FakeBotPause",            n_FakeBotPause },
+                { "FakeBotResume",           n_FakeBotResume },
+                { "FakeBotIsPaused",         n_FakeBotIsPaused },
                 { "FakeBotSetPosition",      n_FakeBotSetPosition },
                 { "FakeBotSetVelocity",      n_FakeBotSetVelocity },
                 { "FakeBotSimulateKnockback", n_FakeBotSimulateKnockback },
