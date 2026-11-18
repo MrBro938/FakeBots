@@ -112,10 +112,12 @@ namespace FakeBots
         void SetCachedVelocity(float x, float y, float z) { m_velocityX = x; m_velocityY = y; m_velocityZ = z; }
         void GetCachedVelocity(float &x, float &y, float &z) const { x = m_velocityX; y = m_velocityY; z = m_velocityZ; }
 
-        // Server-side physics for headless bots. The gamemode supplies the landing height.
-        void SetPhysicsPosition(float x, float y, float z, float groundZ);
+        // Server-side falling physics. Ground contact is queried through the
+        // optional ColAndreas bridge in CallbackDispatcher.
+        void SetPhysicsPosition(float x, float y, float z);
         void SetPhysicsVelocity(float x, float y, float z);
         void StepPhysics(float deltaSeconds);
+        void LandPhysics(float groundZ);
         bool IsPhysicsActive() const { return m_physicsActive; }
         void SetCachedHealth(float health) { m_health = health; }
         float GetCachedHealth() const { return m_health; }
@@ -272,7 +274,6 @@ namespace FakeBots
         float           m_cachedX, m_cachedY, m_cachedZ;
         float           m_facingAngle = 0.0f;
         float           m_velocityX = 0.0f, m_velocityY = 0.0f, m_velocityZ = 0.0f;
-        float           m_physicsGroundZ = 0.0f;
         bool            m_physicsActive = false;
         float           m_health = 100.0f;
         float           m_armour = 0.0f;
