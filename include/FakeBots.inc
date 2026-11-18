@@ -96,12 +96,12 @@ native bool:FakeBotIsPlayer(playerid);
 // ----------------------------------------------------------------------------
 // Position / velocity physics for headless bots
 // ----------------------------------------------------------------------------
-/// Sets a bot's position and the Z height at which its fall should stop.
-/// groundZ must be the landing height in the bot's current world/interior.
-native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z, Float:groundZ);
+/// Moves a bot to a position and starts gravity simulation. The bot falls until
+/// the ColAndreas collision bridge detects a surface below it.
+native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z);
 
 /// Sets velocity in GTA units per second. Gravity is simulated by the plugin
-/// while the bot is airborne.
+/// while the bot is airborne. Requires the same ColAndreas bridge.
 native bool:FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z);
 
 // ----------------------------------------------------------------------------
@@ -503,3 +503,17 @@ forward OnFakeBotGiveDamage(botid, damagedid, Float:amount, weaponid, bodypart);
 /// configured distance of a bot (not on every tick they stay close - only
 /// on the "entered range" transition).
 forward OnFakeBotPlayerNearby(botid, playerid, Float:distance);
+
+#if defined COLANDREAS
+// Internal synchronous callback used by FakeBots to query the collision world.
+// Include <colandreas> before <FakeBots> and call CA_Init() during game-mode init.
+public FakeBots_OnPhysicsRayCast(Float:x, Float:y, Float:startZ, Float:endZ, &Float:hitZ)
+{
+    new Float:hitX, Float:hitY, Float:collisionZ;
+    if (!CA_RayCastLine(x, y, startZ, x, y, endZ, hitX, hitY, collisionZ))
+        return 0;
+
+    hitZ = collisionZ;
+    return 1;
+}
+#endif
