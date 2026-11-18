@@ -38,6 +38,19 @@ namespace FakeBots
         float x, y, z;
     };
 
+    struct BotAnimationState
+    {
+        std::string library;
+        std::string name;
+        float delta = 4.1f;
+        bool loop = false;
+        bool lockX = false;
+        bool lockY = false;
+        bool freeze = false;
+        int time = 0;
+        bool active = false;
+    };
+
     // Pending spawn parameters requested via FakeBotCreate(), applied the
     // moment the bot's own RakNet connection is matched to its server player id.
     struct PendingSpawn
@@ -106,6 +119,10 @@ namespace FakeBots
         uint8_t GetCachedWeapon() const { return m_weapon; }
         void SetCachedKeys(uint16_t keys) { m_keys = keys; }
         uint16_t GetCachedKeys() const { return m_keys; }
+
+        void SetAnimationState(const BotAnimationState &state) { m_animationState = state; }
+        void ClearAnimationState() { m_animationState = BotAnimationState{}; }
+        const BotAnimationState& GetAnimationState() const { return m_animationState; }
 
         void SyncClientStateFromNetwork();
         void ResetRuntimeState();
@@ -253,6 +270,7 @@ namespace FakeBots
         float           m_armour = 0.0f;
         uint8_t         m_weapon = 0;
         uint16_t        m_keys = 0;
+        BotAnimationState m_animationState;
 
         // On-foot state
         bool            m_moving;
