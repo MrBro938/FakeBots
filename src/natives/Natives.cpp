@@ -228,9 +228,9 @@ namespace
             !std::isfinite(groundZ) || groundZ > z)
             return 0;
 
-        if (!sampgdk::SetPlayerPos(playerId, x, y, z))
-            return 0;
-
+        // The bot's next OnFootSync carries this position to the server.
+        // Do not call SetPlayerPos here: that would send an RPC back to the
+        // headless client and race its own authoritative sync state.
         bot->SetPhysicsPosition(x, y, z, groundZ);
         return 1;
     }
