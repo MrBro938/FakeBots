@@ -115,6 +115,7 @@ namespace FakeBots
             ? (kMaxHorizontalOffset / maxOffset) : 1.0f;
 
         m_knockbackPhase = 1;
+        m_knockbackFallStarted = false;
         m_physicsActive = false;
         m_velocityX = velocityX * m_knockbackHorizontalScale;
         m_velocityY = velocityY * m_knockbackHorizontalScale;
@@ -144,6 +145,12 @@ namespace FakeBots
             m_velocityY = m_knockbackVelocityY * m_knockbackHorizontalScale *
                 (1.0f - 2.0f * t / m_knockbackFlightDuration);
             m_velocityZ = m_knockbackUpVelocity - kGravity * t;
+
+            if (!m_knockbackFallStarted && m_knockbackElapsed >= m_knockbackFlightDuration * 0.5f)
+            {
+                m_knockbackFallStarted = true;
+                return 4;
+            }
 
             if (m_knockbackElapsed >= m_knockbackFlightDuration)
             {
