@@ -106,6 +106,12 @@ native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z);
 /// surface detection is performed.
 native bool:FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z);
 
+/// Plays a bounded knockback arc and returns the bot to its launch position.
+/// velocityX/velocityY control the horizontal direction; their total offset
+/// is capped at 0.75 units. upVelocity controls the jump height.
+/// The fall, landing and get-up animations are applied automatically.
+native bool:FakeBotSimulateKnockback(playerid, Float:velocityX, Float:velocityY, Float:upVelocity);
+
 // ----------------------------------------------------------------------------
 // ApplyAnimation compatibility
 // ----------------------------------------------------------------------------
