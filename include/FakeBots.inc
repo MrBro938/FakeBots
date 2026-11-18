@@ -96,18 +96,21 @@ native bool:FakeBotIsPlayer(playerid);
 // ----------------------------------------------------------------------------
 // ApplyAnimation compatibility
 // ----------------------------------------------------------------------------
-// A headless FakeBot cannot execute ApplyAnimation on a GTA client.
-// Redirect Pawn calls made after this include through stock wrappers: on
-// open.mp bots use SYNC_OTHER (2) for persistent stream-in animation, while
-// ClearAnimations is force-synced. Real players retain their original values.
+// A headless FakeBot cannot execute ApplyAnimation on a GTA client. For
+// classic SA-MP 0.3.7, remember the requested animation and replay it whenever
+// the bot streams in for a player. Real players retain their original values.
 //
-// Include <a_samp> before <FakeBots> so the native declaration is already known.
+// Include <a_samp> before <FakeBots> so the native declarations are known.
 // Define FAKEBOTS_NO_AUTO_ANIMATION_SYNC before <FakeBots> to disable redirection.
 stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float:fDelta,
     loop, lockx, locky, freeze, time, forcesync = 0)
 {
     if (FakeBotIsPlayer(playerid))
-        forcesync = 2;
+    {
+        FakeBotStoreAnimation(playerid, animlib, animname, fDelta,
+            loop, lockx, locky, freeze, time);
+        forcesync = 1;
+    }
 
     return ApplyAnimation(playerid, animlib, animname, fDelta,
         loop, lockx, locky, freeze, time, forcesync);
@@ -116,10 +119,17 @@ stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float
 stock FakeBots_ClearAnimations(playerid, forcesync = 0)
 {
     if (FakeBotIsPlayer(playerid))
+    {
+        FakeBotClearAnimationState(playerid);
         forcesync = 1;
+    }
 
     return ClearAnimations(playerid, forcesync);
 }
+
+native bool:FakeBotStoreAnimation(playerid, const animlib[], const animname[], Float:fDelta,
+    loop, lockx, locky, freeze, time);
+native bool:FakeBotClearAnimationState(playerid);
 
 #if !defined FAKEBOTS_NO_AUTO_ANIMATION_SYNC
     #define ApplyAnimation FakeBots_ApplyAnimation
