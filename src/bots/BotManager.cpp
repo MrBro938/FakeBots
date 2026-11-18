@@ -137,6 +137,11 @@ namespace FakeBots
 
     void BotManager::Reset()
     {
+        int existingBots = 0;
+        for (const auto &slot : m_bots)
+            if (slot != nullptr)
+                ++existingBots;
+        ((void)0);
         for (auto &slot : m_bots)
         {
             if (slot)
@@ -145,6 +150,9 @@ namespace FakeBots
         }
 
         m_playerIdToBotId.clear();
+        m_pendingBotPlayerIds.clear();
+        m_pendingPlayerConnects.clear();
+        m_pendingSpawnRestores.clear();
         m_activeBotIds.clear();
         m_pool.clear();
         m_expectedBotDisconnects.clear();
@@ -167,6 +175,7 @@ namespace FakeBots
     {
         if (m_poolingEnabled == enabled)
             return;
+        ((void)0);
 
         if (!enabled)
         {
@@ -220,14 +229,22 @@ namespace FakeBots
         {
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
+            {
+                ((void)0);
                 return;
+            }
+            ((void)0);
             BindNetworkPlayer(botId, playerId);
         });
         bot.Client().SetTransportCallback([this, botId, generation](int reason)
         {
             Bot *current = GetByBotId(botId);
             if (current == nullptr || current->GetGeneration() != generation)
+            {
+                ((void)0);
                 return;
+            }
+            ((void)0);
             HandleTransportFailure(botId, reason);
         });
     }
@@ -277,9 +294,9 @@ namespace FakeBots
             return kInvalidId;
         }
 
-        // Never let the nickname resolver ambiguously bind a real player's
-        // OnPlayerConnect callback to a bot session. SA-MP nicknames are
-        // effectively case-insensitive for uniqueness, so compare folded ASCII.
+        // Nicknames are checked only for server-side uniqueness. A network
+        // connection is never assigned to a bot by name; its player id must
+        // come from that bot client's own InitGame RPC.
         int pooledMatchBotId = kInvalidId;
         if (m_poolingEnabled)
         {
@@ -436,6 +453,7 @@ namespace FakeBots
                 config.password = password;
         }
 
+        ((void)0);
         if (config.port == 0)
         {
             sampgdk::logprintf("[FakeBots] Cannot connect '%s': the server port is unavailable.", bot.GetName().c_str());
@@ -474,8 +492,11 @@ namespace FakeBots
             if (bot == nullptr || bot->GetGeneration() != next.generation)
                 continue; // destroyed before it got its turn
 
+            ((void)0);
             if (!StartBotConnection(*bot))
             {
+                sampgdk::logprintf("[FakeBots][QUEUE] start failed bot=%d name='%s'.",
+                    next.botId, bot->GetName().c_str());
                 HandleTransportFailure(next.botId, NetFail::kAttemptFailed);
                 continue;
             }
@@ -487,82 +508,195 @@ namespace FakeBots
     {
         Bot *bot = GetByBotId(botId);
         const int maxPlayers = sampgdk::GetMaxPlayers();
-        if (bot == nullptr || playerId < 0 || playerId >= maxPlayers)
+        if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=bot-not-found.",
+                botId, playerId);
             return;
+        }
+        if (playerId < 0 || playerId >= maxPlayers)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d name='%s' player=%d maxPlayers=%d reason=out-of-range.",
+                botId, bot->GetName().c_str(), playerId, maxPlayers);
+            return;
+        }
 
         auto existing = m_playerIdToBotId.find(playerId);
         if (existing != m_playerIdToBotId.end() && existing->second != botId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=already-mapped-to-bot-%d.",
+                botId, playerId, existing->second);
             return;
+        }
+
+        auto provisional = m_pendingBotPlayerIds.find(playerId);
+        if (provisional != m_pendingBotPlayerIds.end() && provisional->second != botId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d player=%d reason=pending-mapped-to-bot-%d.",
+                botId, playerId, provisional->second);
+            return;
+        }
+
+        // A single server slot cannot belong to two bot clients. Likewise,
+        // one bot client must never be rebound to a different server slot.
+        if (bot->GetPlayerId() != kInvalidId && bot->GetPlayerId() != playerId)
+        {
+            sampgdk::logprintf("[FakeBots][BIND] rejected bot=%d name='%s' newPlayer=%d existingPlayer=%d reason=bot-already-bound.",
+                botId, bot->GetName().c_str(), playerId, bot->GetPlayerId());
+            return;
+        }
 
         bot->SetPlayerId(playerId);
         m_playerIdToBotId[playerId] = botId;
+        m_pendingBotPlayerIds.erase(playerId);
+        ((void)0);
+
+        // InitGame is the authoritative proof that this exact network client
+        // owns the server player id. Activation must not depend on the relative
+        // order in which OnPlayerConnect and InitGame are observed.
+        std::string playerName;
+        auto pending = m_pendingPlayerConnects.find(playerId);
+        if (pending != m_pendingPlayerConnects.end())
+        {
+            playerName = pending->second;
+            m_pendingPlayerConnects.erase(pending);
+        }
+        m_realPlayers.erase(playerId);
+
+        // Resolve immediately, before HandleInitGame sends RequestClass. This
+        // also covers the case where OnPlayerConnect was not observed at all.
+        ResolveConnection(playerId, playerName);
     }
 
     void BotManager::ResolveConnection(int playerId, const std::string &playerName)
     {
-        // Fast path: transport already told us the player slot.
-        if (Bot *mapped = GetByPlayerId(playerId))
+        (void)playerName;
+
+        // The player id is reported by this bot's own RakNet client in its
+        // InitGame RPC. That per-client association is authoritative: do not
+        // gate activation on the nickname, which scripts/server callbacks may
+        // already have changed by the time OnPlayerConnect is observed.
+        Bot *bot = GetByPlayerId(playerId);
+        if (bot == nullptr)
         {
-            if (mapped->GetState() == BotLifeState::Connecting)
-            {
-                ApplySpawnAndActivate(*mapped);
-                if (!mapped->HasConnectForwarded())
-                {
-                    mapped->MarkConnectForwarded();
-                    CallbackDispatcher::Get().OnBotConnect(mapped->GetBotId());
-                }
-            }
+            sampgdk::logprintf("[FakeBots][RESOLVE] player=%d rejected reason=no-bot-mapping.",
+                playerId);
+            return;
+        }
+        if (bot->GetState() != BotLifeState::Connecting)
+        {
+            ((void)0);
             return;
         }
 
-        // The server's OnPlayerConnect may run before ProcessTick gets a
-        // chance to consume ID_CONNECTION_REQUEST_ACCEPTED. Match the exact
-        // unique nickname and bind the real server player id here.
-        for (int botId : m_activeBotIds)
+        ((void)0);
+        ApplySpawnAndActivate(*bot);
+        if (!bot->HasConnectForwarded())
         {
-            Bot *bot = GetByBotId(botId);
-            if (bot == nullptr || bot->GetState() != BotLifeState::Connecting)
-                continue;
-            if (bot->GetName() != playerName)
-                continue;
-
-            BindNetworkPlayer(botId, playerId);
-            ApplySpawnAndActivate(*bot);
-            if (!bot->HasConnectForwarded())
-            {
-                bot->MarkConnectForwarded();
-                CallbackDispatcher::Get().OnBotConnect(botId);
-            }
-            return;
+            bot->MarkConnectForwarded();
+            CallbackDispatcher::Get().OnBotConnect(bot->GetBotId());
         }
     }
 
     bool BotManager::HandlePlayerConnect(int playerId, const std::string &playerName)
     {
+        // OnPlayerConnect runs before the bot client's InitGame RPC. At this
+        // point the only server-side identity available is the nickname. Match
+        // it only against a currently connected bot client that is specifically
+        // waiting for InitGame. The provisional association is exposed by
+        // IsPlayerBot(), but GetByPlayerId() remains authoritative and returns
+        // a bot only after that same client's InitGame confirms the player id.
         if (GetByPlayerId(playerId) != nullptr)
-            return true;
-
-        for (int botId : m_activeBotIds)
         {
-            Bot *bot = GetByBotId(botId);
-            if (bot != nullptr && bot->GetState() == BotLifeState::Connecting && bot->GetName() == playerName)
-            {
-                ResolveConnection(playerId, playerName);
-                return true;
-            }
+            ((void)0);
+            ResolveConnection(playerId, playerName);
+            return true;
         }
 
+        const std::string wantedName = NormalizePlayerName(playerName);
+        int matchedBotId = kInvalidId;
+        bool ambiguous = false;
+        for (int botId : m_activeBotIds)
+        {
+            Bot *candidate = GetByBotId(botId);
+            if (candidate == nullptr ||
+                candidate->GetPlayerId() != kInvalidId ||
+                candidate->GetState() != BotLifeState::Connecting ||
+                candidate->Client().GetState() != SampBotClient::State::AwaitingInit ||
+                !candidate->Client().IsConnected() ||
+                NormalizePlayerName(candidate->GetName()) != wantedName)
+                continue;
+
+            if (matchedBotId != kInvalidId)
+            {
+                ambiguous = true;
+                break;
+            }
+            matchedBotId = botId;
+        }
+
+        if (matchedBotId != kInvalidId && !ambiguous)
+        {
+            m_pendingBotPlayerIds[playerId] = matchedBotId;
+            m_pendingPlayerConnects[playerId] = playerName;
+            m_realPlayers.erase(playerId);
+            ((void)0);
+            return true;
+        }
+
+        if (ambiguous)
+            ((void)0);
+        else
+            ((void)0);
+
+        m_pendingPlayerConnects[playerId] = playerName;
         m_realPlayers.insert(playerId);
         return false;
+    }
+
+    void BotManager::HandlePlayerSpawn(int playerId)
+    {
+        Bot *bot = GetByPlayerId(playerId);
+        if (bot == nullptr)
+            return;
+
+        // The plugin observer runs before the gamemode's OnPlayerSpawn.
+        // Re-apply the requested interior after the script has initialized the
+        // player. Some gamemodes/plugins also change the interior during spawn,
+        // so retry briefly until the server reports the requested value.
+        m_pendingSpawnRestores[playerId] = {
+            bot->GetGeneration(),
+            20,
+            NowMs()
+        };
     }
 
     bool BotManager::Destroy(int botId)
     {
         Bot *bot = GetByBotId(botId);
-        if (bot == nullptr || bot->GetState() == BotLifeState::Pooled)
+        if (bot == nullptr)
+        {
+            sampgdk::logprintf("[FakeBots][DESTROY] rejected bot=%d reason=not-found.", botId);
             return false;
-
+        }
         const int playerId = bot->GetPlayerId();
+        ((void)0);
+        for (auto it = m_pendingBotPlayerIds.begin(); it != m_pendingBotPlayerIds.end();)
+        {
+            if (it->second == botId)
+            {
+                m_pendingPlayerConnects.erase(it->first);
+                m_realPlayers.erase(it->first);
+                it = m_pendingBotPlayerIds.erase(it);
+            }
+            else
+                ++it;
+        }
+        if (bot->GetState() == BotLifeState::Pooled)
+        {
+            sampgdk::logprintf("[FakeBots][DESTROY] rejected bot=%d reason=pooled.", botId);
+            return false;
+        }
         bot->SetState(BotLifeState::Removing);
 
         if (m_poolingEnabled && playerId != kInvalidId && bot->Client().IsConnected())
@@ -602,8 +736,10 @@ namespace FakeBots
     {
         Bot *bot = GetByBotId(botId);
         if (bot == nullptr)
-            return;
-        const uint64_t generation = bot->GetGeneration();
+        {
+                        return;
+        }
+                const uint64_t generation = bot->GetGeneration();
         for (const auto &existing : m_transportFailures)
         {
             if (existing.botId == botId && existing.generation == generation)
@@ -632,13 +768,33 @@ namespace FakeBots
     {
         if (m_expectedBotDisconnects.erase(playerId) != 0)
         {
+            ((void)0);
             m_realPlayers.erase(playerId);
             return;
         }
 
+        auto pendingConnect = m_pendingPlayerConnects.find(playerId);
+        auto pendingBot = m_pendingBotPlayerIds.find(playerId);
+        if (pendingBot != m_pendingBotPlayerIds.end())
+        {
+            ((void)0);
+            m_pendingBotPlayerIds.erase(pendingBot);
+            m_pendingPlayerConnects.erase(playerId);
+            m_pendingSpawnRestores.erase(playerId);
+            m_realPlayers.erase(playerId);
+            return;
+        }
+
+        if (pendingConnect != m_pendingPlayerConnects.end())
+            ((void)0);
+        else
+            ((void)0);
+        m_pendingPlayerConnects.erase(playerId);
+        m_pendingSpawnRestores.erase(playerId);
         auto mapIt = m_playerIdToBotId.find(playerId);
         if (mapIt == m_playerIdToBotId.end())
         {
+            ((void)0);
             m_realPlayers.erase(playerId);
             return;
         }
@@ -682,7 +838,11 @@ namespace FakeBots
 
     bool BotManager::IsPlayerBot(int playerId) const
     {
-        return m_playerIdToBotId.find(playerId) != m_playerIdToBotId.end();
+        // During OnPlayerConnect the server has assigned a player id, but the
+        // bot client has not yet sent InitGame. Report the provisional match
+        // to Pawn while keeping GetByPlayerId() restricted to confirmed bots.
+        return m_playerIdToBotId.find(playerId) != m_playerIdToBotId.end() ||
+               m_pendingBotPlayerIds.find(playerId) != m_pendingBotPlayerIds.end();
     }
 
     bool BotManager::IsRealPlayer(int playerId) const
@@ -774,6 +934,55 @@ namespace FakeBots
     {
         ProcessStartQueue();
 
+        // Restore instance routing after the gamemode's OnPlayerSpawn callback.
+        // Keep retrying for a short window: another spawn handler may overwrite
+        // the interior after our observer has run.
+        if (!m_pendingSpawnRestores.empty())
+        {
+            const uint32_t now = NowMs();
+            for (auto it = m_pendingSpawnRestores.begin(); it != m_pendingSpawnRestores.end();)
+            {
+                const int playerId = it->first;
+                PendingSpawnRestore &restore = it->second;
+                Bot *bot = GetByPlayerId(playerId);
+
+                if (bot == nullptr || bot->GetGeneration() != restore.generation ||
+                    bot->GetState() != BotLifeState::Spawned ||
+                    !sampgdk::IsPlayerConnected(playerId))
+                {
+                    it = m_pendingSpawnRestores.erase(it);
+                    continue;
+                }
+
+                if (static_cast<int32_t>(now - restore.nextAttemptMs) < 0)
+                {
+                    ++it;
+                    continue;
+                }
+
+                const PendingSpawn &spawn = bot->GetPendingSpawn();
+                sampgdk::SetPlayerVirtualWorld(playerId, spawn.virtualWorld);
+                sampgdk::SetPlayerInterior(playerId, spawn.interior);
+
+                const int actualInterior = sampgdk::GetPlayerInterior(playerId);
+                if (actualInterior == spawn.interior)
+                {
+                    it = m_pendingSpawnRestores.erase(it);
+                    continue;
+                }
+
+                if (--restore.attemptsRemaining <= 0)
+                {
+                    it = m_pendingSpawnRestores.erase(it);
+                    continue;
+                }
+
+                // Tick is frequent; 100 ms avoids flooding the server with RPCs.
+                restore.nextAttemptMs = now + 100;
+                ++it;
+            }
+        }
+
         // Pump every RakNet client even while pooled/connecting. RakNet does
         // network I/O on its own thread, but RPC dispatch and lifecycle
         // packets are deliberately consumed on the server thread here.
@@ -811,7 +1020,7 @@ namespace FakeBots
                 // A handshake that never completed (a lost datagram, or a stale peer of the
                 // same ip:port still known to the server) is simply tried again on a brand
                 // new socket; the script only hears about it when every attempt failed.
-                const bool handshakeFailure = reason == NetFail::kAttemptFailed ||
+                                const bool handshakeFailure = reason == NetFail::kAttemptFailed ||
                                               reason == NetFail::kStageTimeoutBase - static_cast<int>(SampBotClient::State::Connecting);
                 if (playerId == kInvalidId && handshakeFailure && bot->GetConnectRetries() < kMaxConnectRetries)
                 {
@@ -863,7 +1072,7 @@ namespace FakeBots
             bot->GetCachedPosition(bx, by, bz);
             const bool isFar = !IsAnyRealPlayerWithin(bx, by, bz, m_farUpdateDistance);
             float effectiveDelta = deltaSeconds;
-            if (isFar)
+            if (isFar && !bot->IsPhysicsActive() && !bot->IsKnockbackActive())
             {
                 bot->AddThrottleTime(deltaSeconds);
                 const int counter = bot->GetThrottleCounter() + 1;
@@ -877,7 +1086,11 @@ namespace FakeBots
             }
             else
             {
-                effectiveDelta = bot->ConsumeThrottleTime(deltaSeconds);
+                // Airborne bots must keep integrating gravity and checking
+                // collisions every tick, even when no real player is nearby.
+                effectiveDelta = (bot->IsPhysicsActive() || bot->IsKnockbackActive())
+                    ? deltaSeconds
+                    : bot->ConsumeThrottleTime(deltaSeconds);
                 bot->SetThrottleCounter(0);
             }
 
@@ -910,7 +1123,58 @@ namespace FakeBots
                 if (bot->Client().GetLocalState().inVehicle)
                     bot->SendVehicleIdleSync(now);
                 else
+                {
+                    if (bot->IsKnockbackActive())
+                    {
+                        const int transition = bot->StepKnockback(effectiveDelta);
+                        if (transition == 2 || transition == 3 || transition == 4)
+                        {
+                            BotAnimationState animation;
+                            animation.library = "PED";
+                            animation.name = transition == 4 ? "FALL_FALL"
+                                : (transition == 2 ? "FALL_COLLAPSE" : "getup_front");
+                            animation.delta = 4.1f;
+                            animation.loop = transition == 4;
+                            animation.lockX = true;
+                            animation.lockY = true;
+                            animation.freeze = false;
+                            animation.time = transition == 4 ? 0 : (transition == 2 ? 470 : 1370);
+                            animation.active = true;
+                            bot->SetAnimationState(animation);
+                            sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
+                                animation.name.c_str(), animation.delta, animation.loop,
+                                animation.lockX, animation.lockY, animation.freeze,
+                                animation.time, true);
+                        }
+                        else if (transition == -1)
+                        {
+                            bot->ClearAnimationState();
+                            sampgdk::ClearAnimations(bot->GetPlayerId(), true);
+                        }
+                    }
+                    else
+                    {
+                        float previousX = 0.0f, previousY = 0.0f, previousZ = 0.0f;
+                        bot->GetCachedPosition(previousX, previousY, previousZ);
+                        bot->StepPhysics(effectiveDelta);
+
+                        float nextX = 0.0f, nextY = 0.0f, nextZ = 0.0f;
+                        bot->GetCachedPosition(nextX, nextY, nextZ);
+                        if (bot->IsPhysicsActive() && nextZ < previousZ)
+                        {
+                            float collisionZ = 0.0f;
+                            if (CallbackDispatcher::Get().RaycastSegment(
+                                    previousX, previousY, previousZ + 0.25f,
+                                    nextX, nextY, nextZ - 0.25f, collisionZ))
+                            {
+                                // Keep a tiny separation so the next ray does not start inside the surface.
+                                bot->LandPhysics(collisionZ + 0.05f);
+                            }
+                        }
+                    }
+
                     bot->SendOnFootSync(now);
+                }
             }
         }
 

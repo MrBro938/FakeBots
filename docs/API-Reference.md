@@ -69,6 +69,96 @@ Reverse lookup. Returns `FAKEBOTS_INVALID_ID` if `playerid` isn't a bot.
 ### `FakeBotIsPlayer(playerid)`
 Shorthand for `FakeBotGetID(playerid) != FAKEBOTS_INVALID_ID`.
 
+### Automatic animation sync for bots
+
+When `<a_samp>` is included before `<FakeBots>`, calls to the standard
+Pawn `ApplyAnimation()` and `ClearAnimations()` made after the FakeBots
+include are routed through stock wrappers.
+
+Classic SA-MP 0.3.7 does not provide open.mp's persistent SYNC_OTHER
+(`forcesync = 2`) behavior. For FakeBots, the wrapper therefore stores the
+animation parameters in the plugin and calls `ApplyAnimation()` with
+`forcesync = 1` so currently streamed-in players see it. The plugin then
+re-applies the stored animation from its `OnPlayerStreamIn` hook whenever
+the bot becomes visible to a player again. `ClearAnimations()` removes the
+stored state and uses `forcesync = 1` so current viewers also receive the
+clear operation. For real players, both wrappers preserve the caller's
+original `forcesync` value.
+
+This is a Pawn include-level redirection, not a runtime replacement of the
+server natives. If a script must keep the original native names untouched,
+define `FAKEBOTS_NO_AUTO_ANIMATION_SYNC` before including `<FakeBots>`.
+The redirection only affects calls compiled after the FakeBots include.
+The persistence mechanism applies to animations requested through the
+FakeBots wrapper; direct server-native calls bypass the stored-state mechanism.
+
+## Position / velocity physics
+
+### `FakeBotSetPosition(playerid, Float:x, Float:y, Float:z)`
+
+Teleports a spawned FakeBot to the requested position and starts server-side
+gravity simulation. The bot keeps falling while gravity is active.
+
+**ColAndreas is optional.** If the ColAndreas bridge is available, FakeBots
+uses a downward raycast to detect a collision surface and stops the bot at the
+hit position. To enable this, include `<colandreas>` before `<FakeBots>`,
+load the ColAndreas plugin on the server, and call `CA_Init()` during
+initialization.
+
+Without ColAndreas, `FakeBotSetPosition()` still succeeds and gravity is still
+simulated, but FakeBots cannot detect the ground or stop the fall automatically.
+The bot will continue falling until another script action changes its position
+or velocity. No landing height is supplied by the gamemode.
+
+The headless client does not run GTA's own physics. ColAndreas collision
+limitations apply when it is enabled: its static map collision does not model
+every interior, virtual-world, per-player, or streamer object collision.
+Dynamic objects must be registered with ColAndreas' collision system to be
+detected. This is ground/surface landing detection, not full ped-vs-wall
+collision.
+
+### `FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z)`
+
+Sets velocity in GTA world units per second. The plugin integrates velocity
+and gravity on each simulation tick while the bot is airborne.
+
+Example: move a bot 8 units upward and let it fall onto the first surface below:
+
+```pawn
+new Float:x, Float:y, Float:z;
+GetPlayerPos(playerid, x, y, z);
+FakeBotSetPosition(playerid, x, y, z + 8.0);
+```
+
+To add an initial upward impulse, call `FakeBotSetVelocity()` after
+`FakeBotSetPosition()`, for example `FakeBotSetVelocity(playerid, 0.0, 0.0, 2.0)`.
+
+### `FakeBotSimulateKnockback(playerid, Float:velocityX, Float:velocityY, Float:upVelocity)`
+
+Runs a self-contained knockback animation sequence for a spawned bot that is
+not in a vehicle. The native captures the bot's current position, simulates a
+ballistic rise and fall, then snaps it back to that exact position before
+playing the landing and get-up animations.
+
+`velocityX` and `velocityY` define the horizontal launch vector.
+Horizontal displacement is deliberately capped at 0.75 world units and is
+steered back to the captured position, preventing the effect from drifting
+far sideways. `upVelocity` is the upward speed in GTA world units per second
+and must be between 1.0 and 20.0. Only one knockback may run on a bot at a time.
+
+The sequence follows the observed `PED` animation chain: `FALL_GLIDE` while
+rising, `FALL_FALL` after reaching the apex, `FALL_COLLAPSE` on landing, and
+`getup_front` to stand up from the front-facing position. It does not perform full collision checks against ceilings,
+walls, interiors, or streamed objects; the bounded horizontal vector reduces
+sideways clipping but is not a substitute for collision geometry.
+
+Example:
+
+```pawn
+// Mostly vertical knockback, with a small sideways vector.
+FakeBotSimulateKnockback(playerid, 0.15, 0.0, 7.0);
+```
+
 ## On-foot movement
 
 ### `FakeBotGoTo(botid, Float:x, Float:y, Float:z, Float:speed = 1.0, movetype = FAKEBOTS_MOVE_WALK)`

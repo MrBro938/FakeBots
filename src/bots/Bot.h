@@ -38,8 +38,21 @@ namespace FakeBots
         float x, y, z;
     };
 
+    struct BotAnimationState
+    {
+        std::string library;
+        std::string name;
+        float delta = 4.1f;
+        bool loop = false;
+        bool lockX = false;
+        bool lockY = false;
+        bool freeze = false;
+        int time = 0;
+        bool active = false;
+    };
+
     // Pending spawn parameters requested via FakeBotCreate(), applied the
-    // moment the NPC connection completes and OnPlayerConnect fires for it.
+    // moment the bot's own RakNet connection is matched to its server player id.
     struct PendingSpawn
     {
         int   skin        = 0;
@@ -98,6 +111,22 @@ namespace FakeBots
         float GetCachedFacing() const { return m_facingAngle; }
         void SetCachedVelocity(float x, float y, float z) { m_velocityX = x; m_velocityY = y; m_velocityZ = z; }
         void GetCachedVelocity(float &x, float &y, float &z) const { x = m_velocityX; y = m_velocityY; z = m_velocityZ; }
+
+        // Server-side falling physics. Ground contact is queried through the
+        // optional ColAndreas bridge in CallbackDispatcher.
+        void SetPhysicsPosition(float x, float y, float z);
+        void SetPhysicsVelocity(float x, float y, float z);
+        void StepPhysics(float deltaSeconds);
+        void LandPhysics(float groundZ);
+        bool IsPhysicsActive() const { return m_physicsActive; }
+
+        // A scripted knockback follows a bounded ballistic arc and always
+        // returns to its captured launch position before the get-up animation.
+        bool StartKnockback(float velocityX, float velocityY, float upVelocity);
+        // Returns 2 when landing starts, 3 when get-up starts, -1 when finished.
+        // Returns 4 at the start of the falling phase, 2 on landing, 3 on get-up, -1 when finished.
+        int StepKnockback(float deltaSeconds);
+        bool IsKnockbackActive() const { return m_knockbackPhase != 0; }
         void SetCachedHealth(float health) { m_health = health; }
         float GetCachedHealth() const { return m_health; }
         void SetCachedArmour(float armour) { m_armour = armour; }
@@ -106,6 +135,10 @@ namespace FakeBots
         uint8_t GetCachedWeapon() const { return m_weapon; }
         void SetCachedKeys(uint16_t keys) { m_keys = keys; }
         uint16_t GetCachedKeys() const { return m_keys; }
+
+        void SetAnimationState(const BotAnimationState &state) { m_animationState = state; }
+        void ClearAnimationState() { m_animationState = BotAnimationState{}; }
+        const BotAnimationState& GetAnimationState() const { return m_animationState; }
 
         void SyncClientStateFromNetwork();
         void ResetRuntimeState();
@@ -249,10 +282,19 @@ namespace FakeBots
         float           m_cachedX, m_cachedY, m_cachedZ;
         float           m_facingAngle = 0.0f;
         float           m_velocityX = 0.0f, m_velocityY = 0.0f, m_velocityZ = 0.0f;
+        bool            m_physicsActive = false;
+        int             m_knockbackPhase = 0; // 0=inactive, 1=airborne, 2=landing, 3=get-up
+        bool            m_knockbackFallStarted = false;
+        float           m_knockbackOriginX = 0.0f, m_knockbackOriginY = 0.0f, m_knockbackOriginZ = 0.0f;
+        float           m_knockbackVelocityX = 0.0f, m_knockbackVelocityY = 0.0f, m_knockbackUpVelocity = 0.0f;
+        float           m_knockbackElapsed = 0.0f, m_knockbackFlightDuration = 0.0f;
+        float           m_knockbackPhaseElapsed = 0.0f;
+        float           m_knockbackHorizontalScale = 1.0f;
         float           m_health = 100.0f;
         float           m_armour = 0.0f;
         uint8_t         m_weapon = 0;
         uint16_t        m_keys = 0;
+        BotAnimationState m_animationState;
 
         // On-foot state
         bool            m_moving;

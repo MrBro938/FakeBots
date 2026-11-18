@@ -1,0 +1,105 @@
+# =============================================================================
+# FakeBots - manual build pipeline
+#
+# Run this workflow from Actions -> Build -> Run workflow.
+# Builds Linux and Windows x86 binaries and uploads them as artifacts.
+# Does not create or publish a GitHub release.
+# =============================================================================
+name: Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Source audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No NPC code paths, no forbidden APIs
+        run: python3 tools/source_audit.py
+
+  build-linux:
+    name: Build (Linux x86)
+    needs: audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the 32-bit toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake gcc-multilib g++-multilib
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFAKEBOTS_BUILD_PROBE=ON
+
+      - name: Build
+        run: cmake --build build --parallel --target FakeBots
+
+      - name: Check the result
+        run: |
+          file build/FakeBots.so
+          file build/FakeBots.so | grep -q 'ELF 32-bit LSB shared object, Intel 80386'
+          echo "--- shared libraries the plugin needs:"
+          readelf -d build/FakeBots.so | grep NEEDED || true
+          echo "--- exported plugin entry points:"
+          nm -D --defined-only build/FakeBots.so | grep -E ' (Supports|Load|Unload|AmxLoad|AmxUnload|ProcessTick)$'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86
+          path: build/FakeBots.so
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    name: Build (Windows x86)
+    needs: audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the MinGW-w64 (i686) cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++-mingw-w64-i686
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-i686.cmake -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Check the result (self-contained 32-bit DLL)
+        run: |
+          file build/FakeBots.dll
+          file build/FakeBots.dll | grep -q 'PE32 executable (DLL)'
+          imports="$(i686-w64-mingw32-objdump -p build/FakeBots.dll | sed -n 's/^.*DLL Name: //p' | sort -u)"
+          echo "--- DLLs the plugin imports:"
+          echo "${imports}"
+          unexpected="$(echo "${imports}" | grep -viE '^(kernel32|ws2_32|msvcrt|user32|advapi32)\.dll$' || true)"
+          if [ -n "${unexpected}" ]; then
+            echo "::error title=Unexpected DLL dependency::${unexpected}"
+            exit 1
+          fi
+          echo "--- exported plugin entry points:"
+          i686-w64-mingw32-objdump -p build/FakeBots.dll | grep -E '\b(Supports|Load|Unload|AmxLoad|AmxUnload|ProcessTick)\b'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86
+          path: build/FakeBots.dll
+          if-no-files-found: error
+          retention-days: 1

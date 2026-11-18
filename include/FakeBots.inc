@@ -94,6 +94,68 @@ native FakeBotGetID(playerid);
 native bool:FakeBotIsPlayer(playerid);
 
 // ----------------------------------------------------------------------------
+// Position / velocity physics for headless bots
+// ----------------------------------------------------------------------------
+/// Moves a bot to a position and starts gravity simulation.
+/// If the optional ColAndreas bridge is available, falling stops on a detected
+/// surface. Without ColAndreas, gravity still works but no ground collision is detected.
+native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z);
+
+/// Sets velocity in GTA units per second. Gravity is simulated by the plugin
+/// while the bot is airborne. ColAndreas is optional; without it, no landing
+/// surface detection is performed.
+native bool:FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z);
+
+/// Plays a bounded knockback arc and returns the bot to its launch position.
+/// velocityX/velocityY control the horizontal direction; their total offset
+/// is capped at 0.75 units. upVelocity controls the jump height.
+/// The fall, landing and get-up animations are applied automatically.
+native bool:FakeBotSimulateKnockback(playerid, Float:velocityX, Float:velocityY, Float:upVelocity);
+
+// ----------------------------------------------------------------------------
+// ApplyAnimation compatibility
+// ----------------------------------------------------------------------------
+// A headless FakeBot cannot execute ApplyAnimation on a GTA client. For
+// classic SA-MP 0.3.7, remember the requested animation and replay it whenever
+// the bot streams in for a player. Real players retain their original values.
+//
+// Include <a_samp> before <FakeBots> so the native declarations are known.
+// Define FAKEBOTS_NO_AUTO_ANIMATION_SYNC before <FakeBots> to disable redirection.
+native bool:FakeBotStoreAnimation(playerid, const animlib[], const animname[], Float:fDelta,
+    loop, lockx, locky, freeze, time);
+native bool:FakeBotClearAnimationState(playerid);
+
+stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float:fDelta,
+    loop, lockx, locky, freeze, time, forcesync = 0)
+{
+    if (FakeBotIsPlayer(playerid))
+    {
+        FakeBotStoreAnimation(playerid, animlib, animname, fDelta,
+            loop, lockx, locky, freeze, time);
+        forcesync = 1;
+    }
+
+    return ApplyAnimation(playerid, animlib, animname, fDelta,
+        loop, lockx, locky, freeze, time, forcesync);
+}
+
+stock FakeBots_ClearAnimations(playerid, forcesync = 0)
+{
+    if (FakeBotIsPlayer(playerid))
+    {
+        FakeBotClearAnimationState(playerid);
+        forcesync = 1;
+    }
+
+    return ClearAnimations(playerid, forcesync);
+}
+
+#if !defined FAKEBOTS_NO_AUTO_ANIMATION_SYNC
+    #define ApplyAnimation FakeBots_ApplyAnimation
+    #define ClearAnimations FakeBots_ClearAnimations
+#endif
+
+// ----------------------------------------------------------------------------
 // On-foot movement
 // ----------------------------------------------------------------------------
 
@@ -449,3 +511,18 @@ forward OnFakeBotGiveDamage(botid, damagedid, Float:amount, weaponid, bodypart);
 /// configured distance of a bot (not on every tick they stay close - only
 /// on the "entered range" transition).
 forward OnFakeBotPlayerNearby(botid, playerid, Float:distance);
+
+#if defined COLANDREAS
+// Internal synchronous callback used by FakeBots to query the collision world.
+// Include <colandreas> before <FakeBots> and call CA_Init() during game-mode init.
+public FakeBots_OnPhysicsRayCast(Float:startX, Float:startY, Float:startZ,
+    Float:endX, Float:endY, Float:endZ, &Float:hitZ)
+{
+    new Float:hitX, Float:hitY, Float:collisionZ;
+    if (!CA_RayCastLine(startX, startY, startZ, endX, endY, endZ, hitX, hitY, collisionZ))
+        return 0;
+
+    hitZ = collisionZ;
+    return 1;
+}
+#endif

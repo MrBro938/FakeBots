@@ -13,7 +13,7 @@
 #                (classic: scope "repo"; fine-grained: "Contents: Read and write" on this repo).
 #
 #  "Run workflow" (workflow_dispatch) runs steps 1-2 on any branch and keeps the builds as
-#  artifacts; it never publishes a release.
+#  artifacts; it never publishes a release. Manual build artifacts are cleaned up after 12 hours.
 # =============================================================================
 name: Release
 
@@ -87,6 +87,7 @@ jobs:
           name: linux-x86
           path: build/FakeBots.so
           if-no-files-found: error
+          retention-days: 1
 
   # ---------------------------------------------------------------------------
   build-windows:
@@ -130,6 +131,7 @@ jobs:
           name: windows-x86
           path: build/FakeBots.dll
           if-no-files-found: error
+          retention-days: 1
 
   # ---------------------------------------------------------------------------
   release:

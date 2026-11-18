@@ -20,6 +20,7 @@ namespace FakeBots
         int RequestCreate(const std::string &name, const PendingSpawn &spawn);
         void ResolveConnection(int playerId, const std::string &playerName);
         void HandlePlayerRequestClass(int playerId, int classId);
+        void HandlePlayerSpawn(int playerId);
         void BindNetworkPlayer(int botId, int playerId);
         bool HandlePlayerConnect(int playerId, const std::string &playerName);
         bool Destroy(int botId);
@@ -60,7 +61,20 @@ namespace FakeBots
         BotManager() = default;
 
         std::array<std::unique_ptr<Bot>, kMaxBots> m_bots{};
+        // Definitive mappings are created by the bot client's InitGame RPC.
         std::unordered_map<int, int> m_playerIdToBotId;
+        // Provisional mappings let FakeBotIsPlayer work during OnPlayerConnect.
+        // They are matched by the unique nickname requested for an in-flight bot
+        // and are promoted only when that bot's own client reports InitGame.
+        std::unordered_map<int, int> m_pendingBotPlayerIds;
+        std::unordered_map<int, std::string> m_pendingPlayerConnects;
+        struct PendingSpawnRestore
+        {
+            uint64_t generation = 0;
+            int attemptsRemaining = 0;
+            uint32_t nextAttemptMs = 0;
+        };
+        std::unordered_map<int, PendingSpawnRestore> m_pendingSpawnRestores;
         std::vector<int> m_activeBotIds;
         std::vector<int> m_pool;
         std::unordered_set<int> m_realPlayers;

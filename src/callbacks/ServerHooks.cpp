@@ -74,8 +74,8 @@ extern "C"
 
     // ------------------------------------------------------------------
     // Connection handshake: FakeBots are ordinary network players, not
-    // server-side NPCs. The mapping is established by the real RakNet
-    // connection and resolved here as soon as the server emits OnPlayerConnect.
+    // server-side NPCs. OnPlayerConnect may arrive before the embedded client's
+    // InitGame RPC, so the slot is held pending until that client confirms its id.
     // ------------------------------------------------------------------
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerConnect(int playerid)
     {
@@ -104,7 +104,27 @@ extern "C"
         {
             bot->Client().ConfirmServerSpawn();
             bot->SetState(BotLifeState::Spawned);
+            BotManager::Get().HandlePlayerSpawn(playerid);
             CallbackDispatcher::Get().OnBotSpawn(bot->GetBotId());
+        }
+        return true;
+    }
+
+    // Classic SA-MP has no persistent SYNC_OTHER animation mode. Re-issue the
+    // saved animation when a bot becomes visible to a player again.
+    PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerStreamIn(int playerid, int forplayerid)
+    {
+        (void)forplayerid;
+        Bot *bot = BotManager::Get().GetByPlayerId(playerid);
+        if (bot == nullptr)
+            return true;
+
+        const BotAnimationState &animation = bot->GetAnimationState();
+        if (animation.active)
+        {
+            sampgdk::ApplyAnimation(playerid, animation.library.c_str(), animation.name.c_str(),
+                animation.delta, animation.loop, animation.lockX, animation.lockY,
+                animation.freeze, animation.time, true);
         }
         return true;
     }

@@ -3,6 +3,7 @@
 // ============================================================================
 #include "CallbackDispatcher.h"
 #include <algorithm>
+#include <cmath>
 
 namespace FakeBots
 {
@@ -43,6 +44,87 @@ namespace FakeBots
         const int result = (amx_FindPublic(amx, publicName, &index) == AMX_ERR_NONE) ? index : kPublicNotFound;
         perScript.emplace(publicName, result);
         return result;
+    }
+
+    bool CallbackDispatcher::HasGroundRaycast()
+    {
+        const std::vector<AMX*> scripts = m_scripts;
+        for (AMX *amx : scripts)
+        {
+            if (amx == nullptr || amx->base == nullptr ||
+                std::find(m_scripts.begin(), m_scripts.end(), amx) == m_scripts.end())
+                continue;
+            if (FindPublicCached(amx, "FakeBots_OnPhysicsRayCast", m_publicIndexCache) != kPublicNotFound)
+                return true;
+        }
+        return false;
+    }
+
+    bool CallbackDispatcher::RaycastSegment(float startX, float startY, float startZ,
+                                               float endX, float endY, float endZ, float &hitZ)
+    {
+        if (startZ <= endZ)
+            return false;
+
+        const std::vector<AMX*> scripts = m_scripts;
+        for (AMX *amx : scripts)
+        {
+            if (amx == nullptr || amx->base == nullptr ||
+                std::find(m_scripts.begin(), m_scripts.end(), amx) == m_scripts.end())
+                continue;
+
+            const int index = FindPublicCached(amx, "FakeBots_OnPhysicsRayCast", m_publicIndexCache);
+            if (index == kPublicNotFound)
+                continue;
+
+            cell hitAddress = 0;
+            cell *hitPhysical = nullptr;
+            if (amx_Allot(amx, 1, &hitAddress, &hitPhysical) != AMX_ERR_NONE || hitPhysical == nullptr)
+                continue;
+
+            float initialHitZ = 0.0f;
+            *hitPhysical = amx_ftoc(initialHitZ);
+            const cell savedStk = amx->stk;
+            const int savedParamCount = amx->paramcount;
+            const cell params[] = {
+                amx_ftoc(startX), amx_ftoc(startY), amx_ftoc(startZ),
+                amx_ftoc(endX), amx_ftoc(endY), amx_ftoc(endZ), hitAddress
+            };
+
+            bool pushOk = true;
+            for (int i = 6; i >= 0; --i)
+            {
+                if (amx_Push(amx, params[i]) != AMX_ERR_NONE)
+                {
+                    pushOk = false;
+                    break;
+                }
+            }
+
+            cell retval = 0;
+            int error = AMX_ERR_MEMORY;
+            if (pushOk)
+                error = amx_Exec(amx, &retval, index);
+            else
+            {
+                amx->stk = savedStk;
+                amx->paramcount = savedParamCount;
+            }
+
+            const float resultZ = amx_ctof(*hitPhysical);
+            amx_Release(amx, hitAddress);
+
+            if (error == AMX_ERR_NONE && retval != 0 && std::isfinite(resultZ))
+            {
+                hitZ = resultZ;
+                return true;
+            }
+
+            // All scripts use the same include-provided bridge. Do not repeat
+            // the identical ColAndreas raycast for every loaded AMX instance.
+            return false;
+        }
+        return false;
     }
 
     // Pushes params in reverse order (Pawn calling convention), resolves the

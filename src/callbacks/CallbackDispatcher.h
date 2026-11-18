@@ -44,6 +44,12 @@ namespace FakeBots
         // configured distance of a bot (see BotAI::CheckNearbyPlayers).
         void OnBotPlayerNearby(int botId, int playerId, float distance);
 
+        // Synchronous ground query used by the server-side falling simulation.
+        // The Pawn bridge is provided by FakeBots.inc when ColAndreas is included.
+        bool HasGroundRaycast();
+        bool RaycastSegment(float startX, float startY, float startZ,
+                            float endX, float endY, float endZ, float &hitZ);
+
         // ------------------------------------------------------------------
         // Event delivery
         //

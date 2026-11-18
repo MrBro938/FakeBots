@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cctype>
 #include <condition_variable>
 #include <cstring>
 #include <deque>
@@ -29,6 +30,22 @@ namespace FakeBots
     namespace
     {
         constexpr float kPi = 3.14159265358979323846f;
+
+        const char* StateName(SampBotClient::State state)
+        {
+            switch (state)
+            {
+                case SampBotClient::State::Disconnected: return "Disconnected";
+                case SampBotClient::State::Connecting: return "Connecting";
+                case SampBotClient::State::AwaitingInit: return "AwaitingInit";
+                case SampBotClient::State::AwaitingClassResponse: return "AwaitingClassResponse";
+                case SampBotClient::State::AwaitingSpawnResponse: return "AwaitingSpawnResponse";
+                case SampBotClient::State::Spawned: return "Spawned";
+                case SampBotClient::State::Idle: return "Idle";
+                case SampBotClient::State::Failed: return "Failed";
+                default: return "Unknown";
+            }
+        }
 
         float Clamp100(float value)
         {
@@ -66,6 +83,73 @@ namespace FakeBots
                 v.z *= k;
             }
             return v;
+        }
+
+        uint16_t ResolveAnimationId(const char* library, const char* name)
+        {
+            struct AnimationEntry { const char* library; const char* name; uint16_t id; };
+            // SA-MP animation table indices for the CRACK IFP block.
+            static constexpr AnimationEntry entries[] = {
+                {"CRACK", "BBALBAT_IDLE_01", 383},
+                {"CRACK", "BBALBAT_IDLE_02", 384},
+                {"CRACK", "CRCKDETH1", 385},
+                {"CRACK", "CRCKDETH2", 386},
+                {"CRACK", "CRCKDETH3", 387},
+                {"CRACK", "CRCKDETH4", 388},
+                {"CRACK", "CRCKIDLE1", 389},
+                {"CRACK", "CRCKIDLE2", 390},
+                {"CRACK", "CRCKIDLE3", 391},
+                {"CRACK", "CRCKIDLE4", 392},
+                {"BEACH", "BATHER", 41},
+                {"BEACH", "LAY_BAC_LOOP", 42},
+                {"BEACH", "PARKSIT_M_LOOP", 43},
+                {"BEACH", "PARKSIT_W_LOOP", 44},
+                {"BEACH", "SITNWAIT_LOOP_W", 45},
+                {"BENCHPRESS", "GYM_BP_CELEBRATE", 46},
+                {"BENCHPRESS", "GYM_BP_DOWN", 47},
+                {"BENCHPRESS", "GYM_BP_GETOFF", 48},
+                {"BENCHPRESS", "GYM_BP_GETON", 49},
+                {"BENCHPRESS", "GYM_BP_UP_A", 50},
+                {"BENCHPRESS", "GYM_BP_UP_B", 51},
+                {"BENCHPRESS", "GYM_BP_UP_SMOOTH", 52}
+            };
+
+            if (library == nullptr || name == nullptr)
+                return 0;
+
+            const auto equalsIgnoreCase = [](const char* left, const char* right)
+            {
+                if (left == nullptr || right == nullptr)
+                    return false;
+                while (*left != '\0' && *right != '\0')
+                {
+                    const unsigned char a = static_cast<unsigned char>(*left++);
+                    const unsigned char b = static_cast<unsigned char>(*right++);
+                    if (std::tolower(a) != std::tolower(b))
+                        return false;
+                }
+                return *left == '\0' && *right == '\0';
+            };
+
+            for (const AnimationEntry& entry : entries)
+            {
+                if (equalsIgnoreCase(library, entry.library) &&
+                    equalsIgnoreCase(name, entry.name))
+                    return entry.id;
+            }
+            return 0;
+        }
+
+        uint16_t BuildAnimationFlags(bool loop, bool lockX, bool lockY, bool freeze)
+        {
+            // On-foot sync packs frameDelta in the low byte and animation
+            // flags in the high byte.
+            uint8_t flags = 0x80; // regular animation
+            if (loop)  flags |= 1 << 0;
+            if (lockX) flags |= 1 << 1;
+            if (lockY) flags |= 1 << 2;
+            if (freeze) flags |= 1 << 3;
+            return static_cast<uint16_t>(flags) << 8;
         }
 
         bool ReadVec3(RakNet::BitStream& bs, SampVector3& v)
@@ -299,6 +383,8 @@ namespace FakeBots
 
     void SampBotClient::EnterState(State state)
     {
+        if (m_state != state)
+            
         m_state = state;
     }
 
@@ -308,7 +394,7 @@ namespace FakeBots
 
         if (config.host.empty() || config.port == 0 || m_name.empty())
         {
-            m_state = State::Failed;
+                        m_state = State::Failed;
             return false;
         }
 
@@ -334,7 +420,7 @@ namespace FakeBots
         m_client = RakNet::RakNetworkFactory::GetRakClientInterface();
         if (m_client == nullptr)
         {
-            m_state = State::Failed;
+                        m_state = State::Failed;
             return false;
         }
 
@@ -346,9 +432,9 @@ namespace FakeBots
         const uint32_t seconds = std::max<uint32_t>(3, m_config.connectTimeoutMs / 1000);
         SAMPRakNet::SetMaxConnectionAttempts(seconds);
 
-        if (!m_client->Connect(m_config.host.c_str(), m_config.port, 0, 0, std::max(1, m_config.threadSleepMs)))
+                if (!m_client->Connect(m_config.host.c_str(), m_config.port, 0, 0, std::max(1, m_config.threadSleepMs)))
         {
-            UnregisterRpcHandlers();
+                        UnregisterRpcHandlers();
             RakNet::RakNetworkFactory::DestroyRakClientInterface(m_client);
             m_client = nullptr;
             m_state = State::Failed;
@@ -362,6 +448,7 @@ namespace FakeBots
 
     void SampBotClient::Stop(unsigned int blockDurationMs)
     {
+        
         if (m_client != nullptr)
         {
             UnregisterRpcHandlers();
@@ -400,7 +487,7 @@ namespace FakeBots
     {
         if (m_state == State::Failed || m_state == State::Disconnected)
             return;
-        m_state = State::Failed;
+                m_state = State::Failed;
         m_hasDeadline = false;
         if (!m_failureNotified)
         {
@@ -432,6 +519,8 @@ namespace FakeBots
         m_local.leftRight = 0;
         m_local.upDown = 0;
         m_local.specialAction = 0;
+        m_local.animationId = 0;
+        m_local.animationFlags = 0;
         m_local.inVehicle = false;
         m_local.passenger = false;
         m_local.vehicleId = 0;
@@ -454,6 +543,9 @@ namespace FakeBots
              m_state == State::AwaitingClassResponse || m_state == State::AwaitingSpawnResponse) &&
             static_cast<int32_t>(now - m_stageDeadlineMs) > 0)
         {
+            sampgdk::logprintf("[FakeBots][TIMEOUT] name='%s' player=%d state=%s deadline=%u now=%u.",
+                m_name.c_str(), m_playerId, StateName(m_state),
+                static_cast<unsigned>(m_stageDeadlineMs), static_cast<unsigned>(now));
             SetFailed(NetFail::kStageTimeoutBase - static_cast<int>(m_state));
             return;
         }
@@ -477,7 +569,10 @@ namespace FakeBots
                 {
                     // [id][u32 ip][u16 port][u16 playerIndex][u32 challenge]
                     if (packet->length < 13 || m_state != State::Connecting)
+                    {
+                        
                         break;
+                    }
                     RakNet::BitStream accepted(packet->data, packet->length, false);
                     accepted.IgnoreBits(8);
                     accepted.IgnoreBits(8 * (sizeof(unsigned int) + sizeof(unsigned short)));
@@ -489,6 +584,7 @@ namespace FakeBots
                         break;
                     }
 
+                    
                     EnterState(State::AwaitingInit);
                     MarkStageDeadline(m_config.initTimeoutMs);
                     if (!SendClientJoin(challenge))
@@ -502,6 +598,7 @@ namespace FakeBots
                 case RakNet::ID_CONNECTION_BANNED:
                 case RakNet::ID_DISCONNECTION_NOTIFICATION:
                 case RakNet::ID_CONNECTION_LOST:
+                    
                     SetFailed(static_cast<int>(packetId));
                     break;
 
@@ -567,9 +664,14 @@ namespace FakeBots
     bool SampBotClient::SendRpc(unsigned char rpcId, RakNet::BitStream& bs)
     {
         if (m_client == nullptr || !IsConnected())
+        {
+            
             return false;
-        return m_client->RPC(static_cast<RakNet::RPCID>(rpcId), &bs, RakNet::HIGH_PRIORITY,
-                             RakNet::RELIABLE_ORDERED, 0, false, RakNet::UNASSIGNED_NETWORK_ID, nullptr);
+        }
+        const bool sent = m_client->RPC(static_cast<RakNet::RPCID>(rpcId), &bs, RakNet::HIGH_PRIORITY,
+                                        RakNet::RELIABLE_ORDERED, 0, false, RakNet::UNASSIGNED_NETWORK_ID, nullptr);
+        
+        return sent;
     }
 
     bool SampBotClient::SendSync(RakNet::BitStream& bs)
@@ -704,8 +806,8 @@ namespace FakeBots
         bs.Write(0.0f);
         bs.Write(0.0f);
         bs.Write(static_cast<uint16_t>(0)); // surfing vehicle/object id
-        bs.Write(static_cast<uint16_t>(0)); // animation id
-        bs.Write(static_cast<uint16_t>(0)); // animation flags
+        bs.Write(m_local.animationId); // animation id
+        bs.Write(m_local.animationFlags); // animation flags
 
         if (!SendSync(bs))
             return false;
@@ -851,7 +953,11 @@ namespace FakeBots
     void SampBotClient::Dispatch(unsigned char rpcId, RakNet::RPCParameters* params)
     {
         if (params == nullptr)
+        {
+            
             return;
+        }
+        
 
         // Some RPCs (RemovePlayerFromVehicle, ResetPlayerWeapons, ...) carry no
         // payload at all; they must still be dispatched.
@@ -885,6 +991,54 @@ namespace FakeBots
                 HandlePutPlayerInVehicle(bs);
                 break;
 
+            case kRpcApplyAnimation:
+            {
+                // SA-MP ApplyPlayerAnimation (RPC 86) carries an 8-bit player ID.
+                uint8_t playerId = 0;
+                uint8_t libraryLength = 0;
+                uint8_t animationLength = 0;
+                if (!bs.Read(playerId) || !bs.Read(libraryLength) || libraryLength == 0)
+                    break;
+
+                char library[256] = {};
+                char animation[256] = {};
+                if (!bs.Read(library, libraryLength) ||
+                    !bs.Read(animationLength) || animationLength == 0 ||
+                    !bs.Read(animation, animationLength))
+                    break;
+
+                float delta = 0.0f;
+                bool loop = false, lockX = false, lockY = false, freeze = false;
+                int time = 0;
+                if (!bs.Read(delta) || !bs.Read(loop) || !bs.Read(lockX) ||
+                    !bs.Read(lockY) || !bs.Read(freeze) || !bs.Read(time))
+                    break;
+
+                library[libraryLength] = '\0';
+                animation[animationLength] = '\0';
+
+                (void)time; // The on-foot sync format only carries the compact animation flags.
+                if (playerId != static_cast<uint8_t>(m_playerId) ||
+                    !std::isfinite(delta) || delta <= 0.0f)
+                    break;
+
+                m_local.animationId = ResolveAnimationId(library, animation);
+                m_local.animationFlags = m_local.animationId != 0
+                    ? BuildAnimationFlags(loop, lockX, lockY, freeze)
+                    : 0;
+                break;
+            }
+            case kRpcClearAnimations:
+            {
+                // SA-MP ClearPlayerAnimation (RPC 87) carries an 8-bit player ID.
+                uint8_t playerId = 0;
+                if (bs.Read(playerId) && playerId == static_cast<uint8_t>(m_playerId))
+                {
+                    m_local.animationId = 0;
+                    m_local.animationFlags = 0;
+                }
+                break;
+            }
             case kRpcSetPlayerName:
             {
                 uint16_t playerId = 0;
@@ -1018,6 +1172,7 @@ namespace FakeBots
         bs.Read(u32);
         if (!bs.Read(playerId))
         {
+            
             SetFailed(static_cast<int>(kRpcInitGame));
             return;
         }
@@ -1038,11 +1193,13 @@ namespace FakeBots
 
         if (!IsValidPlayerId(static_cast<int>(playerId)))
         {
+            
             SetFailed(static_cast<int>(kRpcInitGame));
             return;
         }
 
         m_playerId = static_cast<int>(playerId);
+        
         if (!m_playerIdAnnounced)
         {
             m_playerIdAnnounced = true;
@@ -1063,9 +1220,16 @@ namespace FakeBots
     {
         uint8_t selectable = 0;
         if (!bs.Read(selectable))
+        {
+            
             return;
+        }
+        
         if (m_state != State::AwaitingClassResponse)
+        {
+            
             return;
+        }
 
         if (selectable == 0)
         {
@@ -1093,15 +1257,22 @@ namespace FakeBots
         if (bs.GetNumberOfBitsUsed() >= 32)
         {
             if (!bs.Read(allow))
+            {
+                
                 return;
+            }
         }
         else
         {
             uint8_t small = 0;
             if (!bs.Read(small))
+            {
+                
                 return;
+            }
             allow = small;
         }
+        
 
         // 2 == the script called SpawnPlayer(): the server wants us to spawn
         // regardless of what state the handshake was in.

@@ -8,6 +8,7 @@
 #include "../bots/BotFileLoader.h"
 #include "../callbacks/CallbackDispatcher.h"
 #include "../i18n/LanguageManager.h"
+#include <cmath>
 #include <random>
 
 using namespace FakeBots;
@@ -54,15 +55,13 @@ namespace
         {
             // amx_StrParam yields nullptr for an empty string: there is no
             // sensible nickname to invent, so refuse instead of guessing.
-            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is empty.");
-            return static_cast<cell>(kInvalidId);
+            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is empty.");            return static_cast<cell>(kInvalidId);
         }
         const char *rawName = nameBuf;
         const size_t rawNameLength = std::strlen(rawName);
         if (rawNameLength > MAX_PLAYER_NAME)
         {
-            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is longer than %d characters.", MAX_PLAYER_NAME);
-            return static_cast<cell>(kInvalidId);
+            sampgdk::logprintf("[FakeBots] FakeBotCreate: the nickname is longer than %d characters.", MAX_PLAYER_NAME);            return static_cast<cell>(kInvalidId);
         }
         std::memcpy(name, rawName, rawNameLength);
         name[rawNameLength] = '\0';
@@ -86,7 +85,11 @@ namespace
         (void)amx;
         if (!HasNativeParams(params, 1))
             return 0;
-        return BotManager::Get().Destroy(static_cast<int>(params[1])) ? 1 : 0;
+        const int botId = static_cast<int>(params[1]);
+        ((void)0);
+        const bool destroyed = BotManager::Get().Destroy(botId);
+        ((void)0);
+        return destroyed ? 1 : 0;
     }
 
     cell AMX_NATIVE_CALL n_FakeBotRespawn(AMX *amx, cell *params)
@@ -200,6 +203,162 @@ namespace
         if (!HasNativeParams(params, 1)) return 0;
         (void)amx;
         return BotManager::Get().IsPlayerBot(static_cast<int>(params[1])) ? 1 : 0;
+    }
+
+    // --------------------------------------------------------------------
+    // Explicit position / velocity for headless-bot physics
+    // --------------------------------------------------------------------
+    cell AMX_NATIVE_CALL n_FakeBotSetPosition(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 4))
+            return 0;
+
+        const int playerId = static_cast<int>(params[1]);
+        Bot *bot = BotManager::Get().GetByPlayerId(playerId);
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle)
+            return 0;
+
+        const float x = amx_ctof(params[2]);
+        const float y = amx_ctof(params[3]);
+        const float z = amx_ctof(params[4]);
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
+            return 0;
+
+        // Replacing an active knockback also clears its client-side animation.
+        if (bot->IsKnockbackActive())
+        {
+            bot->ClearAnimationState();
+            sampgdk::ClearAnimations(playerId, true);
+        }
+
+        // The bot's next OnFootSync carries this position to the server.
+        // Do not call SetPlayerPos here: that would send an RPC back to the
+        // headless client and race its own authoritative sync state.
+        bot->SetPhysicsPosition(x, y, z);
+        return 1;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotSetVelocity(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 4))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle)
+            return 0;
+
+        const float x = amx_ctof(params[2]);
+        const float y = amx_ctof(params[3]);
+        const float z = amx_ctof(params[4]);
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
+            return 0;
+
+        if (bot->IsKnockbackActive())
+        {
+            bot->ClearAnimationState();
+            sampgdk::ClearAnimations(bot->GetPlayerId(), true);
+        }
+
+        bot->SetPhysicsVelocity(x, y, z);
+        return 1;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotSimulateKnockback(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 4))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle || bot->IsKnockbackActive())
+            return 0;
+
+        const float velocityX = amx_ctof(params[2]);
+        const float velocityY = amx_ctof(params[3]);
+        const float upVelocity = amx_ctof(params[4]);
+        if (!std::isfinite(velocityX) || !std::isfinite(velocityY) ||
+            !std::isfinite(upVelocity) || upVelocity < 1.0f || upVelocity > 20.0f ||
+            std::fabs(velocityX) > 20.0f || std::fabs(velocityY) > 20.0f)
+            return 0;
+
+        // Read the live server position rather than relying only on the
+        // last position cached by FakeBots (other scripts may have moved it).
+        float originX = 0.0f, originY = 0.0f, originZ = 0.0f;
+        if (!sampgdk::GetPlayerPos(bot->GetPlayerId(), &originX, &originY, &originZ))
+            return 0;
+        bot->SetCachedPosition(originX, originY, originZ);
+
+        if (!bot->StartKnockback(velocityX, velocityY, upVelocity))
+            return 0;
+
+        BotAnimationState animation;
+        animation.library = "PED";
+        animation.name = "FALL_GLIDE";
+        animation.delta = 4.1f;
+        animation.loop = true;
+        animation.lockX = true;
+        animation.lockY = true;
+        animation.freeze = false;
+        animation.time = 0;
+        animation.active = true;
+        bot->SetAnimationState(animation);
+        sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
+            animation.name.c_str(), animation.delta, animation.loop,
+            animation.lockX, animation.lockY, animation.freeze,
+            animation.time, true);
+        return 1;
+    }
+
+    // --------------------------------------------------------------------
+    // Animation persistence for classic SA-MP stream-in
+    // --------------------------------------------------------------------
+    cell AMX_NATIVE_CALL n_FakeBotStoreAnimation(AMX *amx, cell *params)
+    {
+        if (!HasNativeParams(params, 9))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr)
+            return 0;
+
+        char *library = nullptr;
+        char *name = nullptr;
+        amx_StrParam(amx, params[2], library);
+        amx_StrParam(amx, params[3], name);
+        if (library == nullptr || name == nullptr || library[0] == '\0' || name[0] == '\0')
+            return 0;
+
+        BotAnimationState state;
+        state.library = library;
+        state.name = name;
+        state.delta = amx_ctof(params[4]);
+        state.loop = params[5] != 0;
+        state.lockX = params[6] != 0;
+        state.lockY = params[7] != 0;
+        state.freeze = params[8] != 0;
+        state.time = static_cast<int>(params[9]);
+        state.active = true;
+        bot->SetAnimationState(state);
+        return 1;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotClearAnimationState(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 1))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr)
+            return 0;
+
+        bot->ClearAnimationState();
+        return 1;
     }
 
     // --------------------------------------------------------------------
@@ -607,11 +766,14 @@ namespace
         // Copy first - Destroy() mutates the group via PurgeBot() as it goes.
         std::vector<int> botIds(members->begin(), members->end());
         int affected = 0;
+        ((void)0);
         for (int botId : botIds)
         {
+            ((void)0);
             if (BotManager::Get().Destroy(botId))
                 affected++;
         }
+        ((void)0);
         return affected;
     }
 
@@ -1047,6 +1209,11 @@ namespace FakeBots
                 { "FakeBotGetPlayerID",           n_FakeBotGetPlayerID },
                 { "FakeBotGetID",              n_FakeBotGetID },
                 { "FakeBotIsPlayer",        n_FakeBotIsPlayer },
+                { "FakeBotSetPosition",      n_FakeBotSetPosition },
+                { "FakeBotSetVelocity",      n_FakeBotSetVelocity },
+                { "FakeBotSimulateKnockback", n_FakeBotSimulateKnockback },
+                { "FakeBotStoreAnimation",   n_FakeBotStoreAnimation },
+                { "FakeBotClearAnimationState", n_FakeBotClearAnimationState },
 
                 { "FakeBotGoTo",                  n_FakeBotGoTo },
                 { "FakeBotStopMoving",             n_FakeBotStopMoving },
