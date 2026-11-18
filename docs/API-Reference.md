@@ -146,9 +146,9 @@ steered back to the captured position, preventing the effect from drifting
 far sideways. `upVelocity` is the upward speed in GTA world units per second
 and must be between 1.0 and 20.0. Only one knockback may run on a bot at a time.
 
-The sequence uses the front-facing `PED` animations `FALL_front` and
-`getup_front`: the bot falls face-down onto the chest, stays in the front-fall
-pose briefly, and then gets up facing the ground. It does not perform full collision checks against ceilings,
+The sequence follows the observed `PED` animation chain: `FALL_GLIDE` while
+rising, `FALL_FALL` after reaching the apex, `FALL_COLLAPSE` on landing, and
+`getup_front` to stand up from the front-facing position. It does not perform full collision checks against ceilings,
 walls, interiors, or streamed objects; the bounded horizontal vector reduces
 sideways clipping but is not a substitute for collision geometry.
 
