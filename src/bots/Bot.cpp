@@ -116,9 +116,7 @@ namespace FakeBots
         state.velocity = {x, y, z};
         m_client.SetLocalState(state);
 
-        if (m_cachedZ > m_physicsGroundZ + 0.001f ||
-            std::fabs(x) > 0.001f || std::fabs(y) > 0.001f ||
-            std::fabs(z) > 0.001f)
+        if (m_cachedZ > m_physicsGroundZ + 0.001f || std::fabs(z) > 0.001f)
         {
             m_physicsActive = true;
         }
