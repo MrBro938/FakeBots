@@ -96,12 +96,14 @@ native bool:FakeBotIsPlayer(playerid);
 // ----------------------------------------------------------------------------
 // Position / velocity physics for headless bots
 // ----------------------------------------------------------------------------
-/// Moves a bot to a position and starts gravity simulation. The bot falls until
-/// the ColAndreas collision bridge detects a surface below it.
+/// Moves a bot to a position and starts gravity simulation.
+/// If the optional ColAndreas bridge is available, falling stops on a detected
+/// surface. Without ColAndreas, gravity still works but no ground collision is detected.
 native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z);
 
 /// Sets velocity in GTA units per second. Gravity is simulated by the plugin
-/// while the bot is airborne. Requires the same ColAndreas bridge.
+/// while the bot is airborne. ColAndreas is optional; without it, no landing
+/// surface detection is performed.
 native bool:FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z);
 
 // ----------------------------------------------------------------------------
