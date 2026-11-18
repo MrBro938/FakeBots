@@ -981,7 +981,8 @@ namespace FakeBots
 
             case kRpcApplyAnimation:
             {
-                uint8_t playerId = 0;
+                // ApplyPlayerAnimation (RPC 86) uses a 16-bit player ID.
+                uint16_t playerId = 0;
                 uint8_t libraryLength = 0;
                 uint8_t animationLength = 0;
                 if (!bs.Read(playerId) || !bs.Read(libraryLength) || libraryLength == 0)
@@ -1005,7 +1006,7 @@ namespace FakeBots
                 animation[animationLength] = '\0';
 
                 (void)time; // The on-foot sync format only carries the compact animation flags.
-                if (playerId != static_cast<uint8_t>(m_playerId) ||
+                if (playerId != static_cast<uint16_t>(m_playerId) ||
                     !std::isfinite(delta) || delta <= 0.0f)
                     break;
 
@@ -1017,8 +1018,9 @@ namespace FakeBots
             }
             case kRpcClearAnimations:
             {
-                uint8_t playerId = 0;
-                if (bs.Read(playerId) && playerId == static_cast<uint8_t>(m_playerId))
+                // ClearPlayerAnimation (RPC 87) also uses a 16-bit player ID.
+                uint16_t playerId = 0;
+                if (bs.Read(playerId) && playerId == static_cast<uint16_t>(m_playerId))
                 {
                     m_local.animationId = 0;
                     m_local.animationFlags = 0;
