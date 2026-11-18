@@ -96,10 +96,10 @@ native bool:FakeBotIsPlayer(playerid);
 // ----------------------------------------------------------------------------
 // ApplyAnimation compatibility
 // ----------------------------------------------------------------------------
-// A headless FakeBot cannot execute ApplyAnimation on a GTA client and therefore
-// cannot generate the client-side animation sync expected when forcesync is 0.
-// Redirect Pawn calls made after this include through a stock wrapper: bots get
-// forcesync=1, while real players retain the caller's original value.
+// A headless FakeBot cannot execute ApplyAnimation on a GTA client.
+// Redirect Pawn calls made after this include through stock wrappers: on
+// open.mp bots use SYNC_OTHER (2) for persistent stream-in animation, while
+// ClearAnimations is force-synced. Real players retain their original values.
 //
 // Include <a_samp> before <FakeBots> so the native declaration is already known.
 // Define FAKEBOTS_NO_AUTO_ANIMATION_SYNC before <FakeBots> to disable redirection.
