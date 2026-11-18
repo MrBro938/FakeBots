@@ -119,6 +119,13 @@ namespace FakeBots
         void StepPhysics(float deltaSeconds);
         void LandPhysics(float groundZ);
         bool IsPhysicsActive() const { return m_physicsActive; }
+
+        // A scripted knockback follows a bounded ballistic arc and always
+        // returns to its captured launch position before the get-up animation.
+        bool StartKnockback(float velocityX, float velocityY, float upVelocity);
+        // Returns 2 when landing starts, 3 when get-up starts, -1 when finished.
+        int StepKnockback(float deltaSeconds);
+        bool IsKnockbackActive() const { return m_knockbackPhase != 0; }
         void SetCachedHealth(float health) { m_health = health; }
         float GetCachedHealth() const { return m_health; }
         void SetCachedArmour(float armour) { m_armour = armour; }
@@ -275,6 +282,12 @@ namespace FakeBots
         float           m_facingAngle = 0.0f;
         float           m_velocityX = 0.0f, m_velocityY = 0.0f, m_velocityZ = 0.0f;
         bool            m_physicsActive = false;
+        int             m_knockbackPhase = 0; // 0=inactive, 1=airborne, 2=landing, 3=get-up
+        float           m_knockbackOriginX = 0.0f, m_knockbackOriginY = 0.0f, m_knockbackOriginZ = 0.0f;
+        float           m_knockbackVelocityX = 0.0f, m_knockbackVelocityY = 0.0f, m_knockbackUpVelocity = 0.0f;
+        float           m_knockbackElapsed = 0.0f, m_knockbackFlightDuration = 0.0f;
+        float           m_knockbackPhaseElapsed = 0.0f;
+        float           m_knockbackHorizontalScale = 1.0f;
         float           m_health = 100.0f;
         float           m_armour = 0.0f;
         uint8_t         m_weapon = 0;
