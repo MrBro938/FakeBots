@@ -102,6 +102,10 @@ native bool:FakeBotIsPlayer(playerid);
 //
 // Include <a_samp> before <FakeBots> so the native declarations are known.
 // Define FAKEBOTS_NO_AUTO_ANIMATION_SYNC before <FakeBots> to disable redirection.
+native bool:FakeBotStoreAnimation(playerid, const animlib[], const animname[], Float:fDelta,
+    loop, lockx, locky, freeze, time);
+native bool:FakeBotClearAnimationState(playerid);
+
 stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float:fDelta,
     loop, lockx, locky, freeze, time, forcesync = 0)
 {
@@ -126,10 +130,6 @@ stock FakeBots_ClearAnimations(playerid, forcesync = 0)
 
     return ClearAnimations(playerid, forcesync);
 }
-
-native bool:FakeBotStoreAnimation(playerid, const animlib[], const animname[], Float:fDelta,
-    loop, lockx, locky, freeze, time);
-native bool:FakeBotClearAnimationState(playerid);
 
 #if !defined FAKEBOTS_NO_AUTO_ANIMATION_SYNC
     #define ApplyAnimation FakeBots_ApplyAnimation
