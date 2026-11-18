@@ -298,7 +298,7 @@ namespace
 
         BotAnimationState animation;
         animation.library = "PED";
-        animation.name = "FALL_front";
+        animation.name = "FALL_GLIDE";
         animation.delta = 4.1f;
         animation.loop = true;
         animation.lockX = true;
