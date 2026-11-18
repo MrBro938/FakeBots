@@ -82,7 +82,8 @@ namespace FakeBots
             if (amx_Allot(amx, 1, &hitAddress, &hitPhysical) != AMX_ERR_NONE || hitPhysical == nullptr)
                 continue;
 
-            *hitPhysical = amx_ftoc(0.0f);
+            float initialHitZ = 0.0f;
+            *hitPhysical = amx_ftoc(initialHitZ);
             const cell savedStk = amx->stk;
             const int savedParamCount = amx->paramcount;
             const cell params[] = {
