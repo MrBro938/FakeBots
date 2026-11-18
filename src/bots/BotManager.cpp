@@ -1131,13 +1131,13 @@ namespace FakeBots
                         {
                             BotAnimationState animation;
                             animation.library = "PED";
-                            animation.name = transition == 2 ? "FALL_land" : "FALL_getup";
+                            animation.name = transition == 2 ? "FALL_land" : "getup";
                             animation.delta = 4.1f;
                             animation.loop = false;
                             animation.lockX = true;
                             animation.lockY = true;
                             animation.freeze = false;
-                            animation.time = transition == 2 ? 450 : 1000;
+                            animation.time = transition == 2 ? 470 : 1400;
                             animation.active = true;
                             bot->SetAnimationState(animation);
                             sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
