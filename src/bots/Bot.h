@@ -124,6 +124,7 @@ namespace FakeBots
         // returns to its captured launch position before the get-up animation.
         bool StartKnockback(float velocityX, float velocityY, float upVelocity);
         // Returns 2 when landing starts, 3 when get-up starts, -1 when finished.
+        // Returns 4 at the start of the falling phase, 2 on landing, 3 on get-up, -1 when finished.
         int StepKnockback(float deltaSeconds);
         bool IsKnockbackActive() const { return m_knockbackPhase != 0; }
         void SetCachedHealth(float health) { m_health = health; }
@@ -283,6 +284,7 @@ namespace FakeBots
         float           m_velocityX = 0.0f, m_velocityY = 0.0f, m_velocityZ = 0.0f;
         bool            m_physicsActive = false;
         int             m_knockbackPhase = 0; // 0=inactive, 1=airborne, 2=landing, 3=get-up
+        bool            m_knockbackFallStarted = false;
         float           m_knockbackOriginX = 0.0f, m_knockbackOriginY = 0.0f, m_knockbackOriginZ = 0.0f;
         float           m_knockbackVelocityX = 0.0f, m_knockbackVelocityY = 0.0f, m_knockbackUpVelocity = 0.0f;
         float           m_knockbackElapsed = 0.0f, m_knockbackFlightDuration = 0.0f;
