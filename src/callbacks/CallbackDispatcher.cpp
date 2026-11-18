@@ -60,7 +60,8 @@ namespace FakeBots
         return false;
     }
 
-    bool CallbackDispatcher::RaycastDown(float x, float y, float startZ, float endZ, float &hitZ)
+    bool CallbackDispatcher::RaycastSegment(float startX, float startY, float startZ,
+                                               float endX, float endY, float endZ, float &hitZ)
     {
         if (startZ <= endZ)
             return false;
@@ -85,11 +86,12 @@ namespace FakeBots
             const cell savedStk = amx->stk;
             const int savedParamCount = amx->paramcount;
             const cell params[] = {
-                amx_ftoc(x), amx_ftoc(y), amx_ftoc(startZ), amx_ftoc(endZ), hitAddress
+                amx_ftoc(startX), amx_ftoc(startY), amx_ftoc(startZ),
+                amx_ftoc(endX), amx_ftoc(endY), amx_ftoc(endZ), hitAddress
             };
 
             bool pushOk = true;
-            for (int i = 4; i >= 0; --i)
+            for (int i = 6; i >= 0; --i)
             {
                 if (amx_Push(amx, params[i]) != AMX_ERR_NONE)
                 {
