@@ -226,6 +226,13 @@ namespace
         if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
             return 0;
 
+        // Replacing an active knockback also clears its client-side animation.
+        if (bot->IsKnockbackActive())
+        {
+            bot->ClearAnimationState();
+            sampgdk::ClearAnimations(playerId, true);
+        }
+
         // The bot's next OnFootSync carries this position to the server.
         // Do not call SetPlayerPos here: that would send an RPC back to the
         // headless client and race its own authoritative sync state.
@@ -250,6 +257,12 @@ namespace
         if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
             return 0;
 
+        if (bot->IsKnockbackActive())
+        {
+            bot->ClearAnimationState();
+            sampgdk::ClearAnimations(bot->GetPlayerId(), true);
+        }
+
         bot->SetPhysicsVelocity(x, y, z);
         return 1;
     }
@@ -272,6 +285,13 @@ namespace
             !std::isfinite(upVelocity) || upVelocity < 1.0f || upVelocity > 20.0f ||
             std::fabs(velocityX) > 20.0f || std::fabs(velocityY) > 20.0f)
             return 0;
+
+        // Read the live server position rather than relying only on the
+        // last position cached by FakeBots (other scripts may have moved it).
+        float originX = 0.0f, originY = 0.0f, originZ = 0.0f;
+        if (!sampgdk::GetPlayerPos(bot->GetPlayerId(), &originX, &originY, &originZ))
+            return 0;
+        bot->SetCachedPosition(originX, originY, originZ);
 
         if (!bot->StartKnockback(velocityX, velocityY, upVelocity))
             return 0;
