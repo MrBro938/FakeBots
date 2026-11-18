@@ -110,6 +110,25 @@ extern "C"
         return true;
     }
 
+    // Classic SA-MP has no persistent SYNC_OTHER animation mode. Re-issue the
+    // saved animation when a bot becomes visible to a player again.
+    PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerStreamIn(int playerid, int forplayerid)
+    {
+        (void)forplayerid;
+        Bot *bot = BotManager::Get().GetByPlayerId(playerid);
+        if (bot == nullptr)
+            return true;
+
+        const BotAnimationState &animation = bot->GetAnimationState();
+        if (animation.active)
+        {
+            sampgdk::ApplyAnimation(playerid, animation.library.c_str(), animation.name.c_str(),
+                animation.delta, animation.loop, animation.lockX, animation.lockY,
+                animation.freeze, animation.time, true);
+        }
+        return true;
+    }
+
     PLUGIN_EXPORT bool PLUGIN_CALL OnPlayerDeath(int playerid, int killerid, int reason)
     {
         Bot *bot = BotManager::Get().GetByPlayerId(playerid);
