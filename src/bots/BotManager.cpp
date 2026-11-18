@@ -1120,7 +1120,23 @@ namespace FakeBots
                     bot->SendVehicleIdleSync(now);
                 else
                 {
+                    float previousX = 0.0f, previousY = 0.0f, previousZ = 0.0f;
+                    bot->GetCachedPosition(previousX, previousY, previousZ);
                     bot->StepPhysics(effectiveDelta);
+
+                    float nextX = 0.0f, nextY = 0.0f, nextZ = 0.0f;
+                    bot->GetCachedPosition(nextX, nextY, nextZ);
+                    if (bot->IsPhysicsActive() && nextZ < previousZ)
+                    {
+                        float collisionZ = 0.0f;
+                        if (CallbackDispatcher::Get().RaycastDown(
+                                nextX, nextY, previousZ + 0.25f, nextZ - 0.25f, collisionZ))
+                        {
+                            // Keep a tiny separation so the next ray does not start inside the surface.
+                            bot->LandPhysics(collisionZ + 0.05f);
+                        }
+                    }
+
                     bot->SendOnFootSync(now);
                 }
             }
