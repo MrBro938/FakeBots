@@ -113,8 +113,10 @@ Example: lift a bot by 8 units and let it fall back to its original height:
 new Float:x, Float:y, Float:z;
 GetPlayerPos(playerid, x, y, z);
 FakeBotSetPosition(playerid, x, y, z + 8.0, z);
-FakeBotSetVelocity(playerid, 0.0, 0.0, 0.0);
 ```
+
+To add an initial upward impulse, call `FakeBotSetVelocity()` after
+`FakeBotSetPosition()`, for example `FakeBotSetVelocity(playerid, 0.0, 0.0, 2.0)`.
 
 ## On-foot movement
 
