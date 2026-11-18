@@ -160,13 +160,13 @@ namespace FakeBots
         }
 
         m_knockbackPhaseElapsed += dt;
-        if (m_knockbackPhase == 2 && m_knockbackPhaseElapsed >= 0.45f)
+        if (m_knockbackPhase == 2 && m_knockbackPhaseElapsed >= 0.47f)
         {
             m_knockbackPhase = 3;
             m_knockbackPhaseElapsed = 0.0f;
             return 3;
         }
-        if (m_knockbackPhase == 3 && m_knockbackPhaseElapsed >= 1.0f)
+        if (m_knockbackPhase == 3 && m_knockbackPhaseElapsed >= 1.4f)
         {
             m_knockbackPhase = 0;
             m_knockbackPhaseElapsed = 0.0f;
