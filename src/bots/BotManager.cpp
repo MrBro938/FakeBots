@@ -1124,21 +1124,51 @@ namespace FakeBots
                     bot->SendVehicleIdleSync(now);
                 else
                 {
-                    float previousX = 0.0f, previousY = 0.0f, previousZ = 0.0f;
-                    bot->GetCachedPosition(previousX, previousY, previousZ);
-                    bot->StepPhysics(effectiveDelta);
-
-                    float nextX = 0.0f, nextY = 0.0f, nextZ = 0.0f;
-                    bot->GetCachedPosition(nextX, nextY, nextZ);
-                    if (bot->IsPhysicsActive() && nextZ < previousZ)
+                    if (bot->IsKnockbackActive())
                     {
-                        float collisionZ = 0.0f;
-                        if (CallbackDispatcher::Get().RaycastSegment(
-                                previousX, previousY, previousZ + 0.25f,
-                                nextX, nextY, nextZ - 0.25f, collisionZ))
+                        const int transition = bot->StepKnockback(effectiveDelta);
+                        if (transition == 2 || transition == 3)
                         {
-                            // Keep a tiny separation so the next ray does not start inside the surface.
-                            bot->LandPhysics(collisionZ + 0.05f);
+                            BotAnimationState animation;
+                            animation.library = "PED";
+                            animation.name = transition == 2 ? "FALL_land" : "FALL_getup";
+                            animation.delta = 4.1f;
+                            animation.loop = false;
+                            animation.lockX = true;
+                            animation.lockY = true;
+                            animation.freeze = false;
+                            animation.time = transition == 2 ? 450 : 1000;
+                            animation.active = true;
+                            bot->SetAnimationState(animation);
+                            sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
+                                animation.name.c_str(), animation.delta, animation.loop,
+                                animation.lockX, animation.lockY, animation.freeze,
+                                animation.time, true);
+                        }
+                        else if (transition == -1)
+                        {
+                            bot->ClearAnimationState();
+                            sampgdk::ClearAnimations(bot->GetPlayerId(), true);
+                        }
+                    }
+                    else
+                    {
+                        float previousX = 0.0f, previousY = 0.0f, previousZ = 0.0f;
+                        bot->GetCachedPosition(previousX, previousY, previousZ);
+                        bot->StepPhysics(effectiveDelta);
+
+                        float nextX = 0.0f, nextY = 0.0f, nextZ = 0.0f;
+                        bot->GetCachedPosition(nextX, nextY, nextZ);
+                        if (bot->IsPhysicsActive() && nextZ < previousZ)
+                        {
+                            float collisionZ = 0.0f;
+                            if (CallbackDispatcher::Get().RaycastSegment(
+                                    previousX, previousY, previousZ + 0.25f,
+                                    nextX, nextY, nextZ - 0.25f, collisionZ))
+                            {
+                                // Keep a tiny separation so the next ray does not start inside the surface.
+                                bot->LandPhysics(collisionZ + 0.05f);
+                            }
                         }
                     }
 
