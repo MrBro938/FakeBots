@@ -3,7 +3,9 @@
 // ============================================================================
 #include "Bot.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 
 namespace {
     std::atomic<uint64_t> g_botGeneration{0};
@@ -67,6 +69,8 @@ namespace FakeBots
         m_loopDriveWaypoints = false;
         m_lastAppliedAnim = BotMoveType::None;
         ClearAnimationState();
+        m_physicsActive = false;
+        m_physicsGroundZ = 0.0f;
         m_followTargetId = kInvalidId;
         m_combatTargetId = kInvalidId;
         m_combatCooldown = 0.0f;
@@ -76,6 +80,69 @@ namespace FakeBots
         ResetThrottle();
         SetCachedVelocity(0.0f, 0.0f, 0.0f);
         SetCachedKeys(0);
+    }
+
+    void Bot::SetPhysicsPosition(float x, float y, float z, float groundZ)
+    {
+        m_cachedX = x;
+        m_cachedY = y;
+        m_cachedZ = z;
+        m_physicsGroundZ = groundZ;
+        m_physicsActive = z > groundZ + 0.001f;
+        m_velocityX = 0.0f;
+        m_velocityY = 0.0f;
+        m_velocityZ = 0.0f;
+
+        SampBotLocalState state = m_client.GetLocalState();
+        state.position = {x, y, z};
+        state.velocity = {};
+        m_client.SetLocalState(state);
+    }
+
+    void Bot::SetPhysicsVelocity(float x, float y, float z)
+    {
+        m_velocityX = x;
+        m_velocityY = y;
+        m_velocityZ = z;
+
+        SampBotLocalState state = m_client.GetLocalState();
+        state.velocity = {x, y, z};
+        m_client.SetLocalState(state);
+
+        if (m_cachedZ > m_physicsGroundZ + 0.001f ||
+            std::fabs(x) > 0.001f || std::fabs(y) > 0.001f ||
+            std::fabs(z) > 0.001f)
+        {
+            m_physicsActive = true;
+        }
+    }
+
+    void Bot::StepPhysics(float deltaSeconds)
+    {
+        if (!m_physicsActive || deltaSeconds <= 0.0f)
+            return;
+
+        // Cap a single step so a server hitch cannot skip the landing height.
+        const float dt = std::min(deltaSeconds, 0.1f);
+        constexpr float kGravity = 9.81f;
+
+        m_velocityZ -= kGravity * dt;
+        m_cachedX += m_velocityX * dt;
+        m_cachedY += m_velocityY * dt;
+
+        const float nextZ = m_cachedZ + m_velocityZ * dt;
+        if (m_velocityZ <= 0.0f && nextZ <= m_physicsGroundZ)
+        {
+            m_cachedZ = m_physicsGroundZ;
+            m_velocityX = 0.0f;
+            m_velocityY = 0.0f;
+            m_velocityZ = 0.0f;
+            m_physicsActive = false;
+        }
+        else
+        {
+            m_cachedZ = nextZ;
+        }
     }
 
     void Bot::SyncClientStateFromNetwork()
@@ -150,6 +217,7 @@ namespace FakeBots
         if (state == BotLifeState::Dead || state == BotLifeState::Removing)
         {
             ClearAnimationState();
+            m_physicsActive = false;
             StopMoving();
             StopDriving();
             StopFollowing();
