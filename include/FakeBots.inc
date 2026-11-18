@@ -107,14 +107,23 @@ stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float
     loop, lockx, locky, freeze, time, forcesync = 0)
 {
     if (FakeBotIsPlayer(playerid))
-        forcesync = 1;
+        forcesync = 2;
 
     return ApplyAnimation(playerid, animlib, animname, fDelta,
         loop, lockx, locky, freeze, time, forcesync);
 }
 
+stock FakeBots_ClearAnimations(playerid, forcesync = 0)
+{
+    if (FakeBotIsPlayer(playerid))
+        forcesync = 1;
+
+    return ClearAnimations(playerid, forcesync);
+}
+
 #if !defined FAKEBOTS_NO_AUTO_ANIMATION_SYNC
     #define ApplyAnimation FakeBots_ApplyAnimation
+    #define ClearAnimations FakeBots_ClearAnimations
 #endif
 
 // ----------------------------------------------------------------------------
