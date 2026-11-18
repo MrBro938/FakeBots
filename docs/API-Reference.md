@@ -133,6 +133,31 @@ FakeBotSetPosition(playerid, x, y, z + 8.0);
 To add an initial upward impulse, call `FakeBotSetVelocity()` after
 `FakeBotSetPosition()`, for example `FakeBotSetVelocity(playerid, 0.0, 0.0, 2.0)`.
 
+### `FakeBotSimulateKnockback(playerid, Float:velocityX, Float:velocityY, Float:upVelocity)`
+
+Runs a self-contained knockback animation sequence for a spawned bot that is
+not in a vehicle. The native captures the bot's current position, simulates a
+ballistic rise and fall, then snaps it back to that exact position before
+playing the landing and get-up animations.
+
+`velocityX` and `velocityY` define the horizontal launch vector.
+Horizontal displacement is deliberately capped at 0.75 world units and is
+steered back to the captured position, preventing the effect from drifting
+far sideways. `upVelocity` is the upward speed in GTA world units per second
+and must be between 1.0 and 20.0. Only one knockback may run on a bot at a time.
+
+The sequence uses the `PED` animations `FALL_fall`, `FALL_land`, and
+`FALL_getup`. It does not perform full collision checks against ceilings,
+walls, interiors, or streamed objects; the bounded horizontal vector reduces
+sideways clipping but is not a substitute for collision geometry.
+
+Example:
+
+```pawn
+// Mostly vertical knockback, with a small sideways vector.
+FakeBotSimulateKnockback(playerid, 0.15, 0.0, 7.0);
+```
+
 ## On-foot movement
 
 ### `FakeBotGoTo(botid, Float:x, Float:y, Float:z, Float:speed = 1.0, movetype = FAKEBOTS_MOVE_WALK)`
