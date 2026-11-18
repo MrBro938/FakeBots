@@ -405,6 +405,7 @@ namespace FakeBots
         m_playerId = kInvalidId;
         m_failureNotified = false;
         m_dead = false;
+        m_paused = false;
         m_playerIdAnnounced = false;
         m_hasSynced = false;
         m_onFootRateMs = std::clamp(m_config.defaultOnFootRateMs, kMinSyncIntervalMs, kMaxSyncIntervalMs);
@@ -462,6 +463,7 @@ namespace FakeBots
         m_playerId = kInvalidId;
         m_failureNotified = false;
         m_dead = false;
+        m_paused = false;
         m_playerIdAnnounced = false;
         m_hasDeadline = false;
         m_hasSynced = false;
@@ -470,6 +472,14 @@ namespace FakeBots
     bool SampBotClient::IsConnected() const
     {
         return m_client != nullptr && m_client->IsConnected();
+    }
+
+    bool SampBotClient::SetPaused(bool paused)
+    {
+        if (m_client == nullptr || m_state != State::Spawned || m_dead)
+            return false;
+        m_paused = paused;
+        return true;
     }
 
     int SampBotClient::GetPing()
@@ -503,6 +513,7 @@ namespace FakeBots
             return;
         m_state = State::Spawned;
         m_dead = false;
+        m_paused = false;
         m_hasDeadline = false;
     }
 
@@ -527,6 +538,7 @@ namespace FakeBots
         m_local.vehicleSeat = 0;
         m_local.controllable = true;
         m_dead = false;
+        m_paused = false;
     }
 
     // ------------------------------------------------------------------
@@ -613,7 +625,7 @@ namespace FakeBots
 
         // Keep-alive: an idle player still reports its state a few times per
         // second (a stopped sync stream looks like a frozen/AFK client).
-        if (m_state == State::Spawned && !m_dead && m_config.idleHeartbeatMs != 0 &&
+        if (m_state == State::Spawned && !m_dead && !m_paused && m_config.idleHeartbeatMs != 0 &&
             (!m_hasSynced || now - m_lastAnySyncMs >= m_config.idleHeartbeatMs))
         {
             if (m_local.inVehicle)
@@ -735,6 +747,7 @@ namespace FakeBots
         bs.Write(r);
         bs.Write(k);
         m_dead = true;
+        m_paused = false;
         m_local.health = 0.0f;
         return SendRpc(kRpcDeath, bs);
     }
@@ -774,7 +787,7 @@ namespace FakeBots
     //   u16 animationId, u16 animationFlags
     bool SampBotClient::SendOnFootSync(uint32_t nowMs)
     {
-        if (m_client == nullptr || m_state != State::Spawned || m_dead || m_local.inVehicle)
+        if (m_client == nullptr || m_state != State::Spawned || m_dead || m_paused || m_local.inVehicle)
             return false;
         if (m_hasSynced && static_cast<uint32_t>(nowMs - m_lastOnFootSyncMs) < m_onFootRateMs)
             return false;
@@ -827,7 +840,7 @@ namespace FakeBots
                                       float facingAngle, uint8_t weapon, uint16_t keys,
                                       bool siren, bool landingGear, const float* quatWxyz)
     {
-        if (m_client == nullptr || m_state != State::Spawned || m_dead || vehicleId <= 0 || vehicleId > 2000)
+        if (m_client == nullptr || m_state != State::Spawned || m_dead || m_paused || vehicleId <= 0 || vehicleId > 2000)
             return false;
         const uint32_t nowMs = NowMs();
         if (m_hasSynced && static_cast<uint32_t>(nowMs - m_lastInCarSyncMs) < m_inCarRateMs)
@@ -884,7 +897,7 @@ namespace FakeBots
     //   u8 health, u8 armour, u16 leftRight, u16 upDown, u16 keys, f32 pos[3]
     bool SampBotClient::SendPassengerSync(int vehicleId, int seat, const SampVector3& position)
     {
-        if (m_client == nullptr || m_state != State::Spawned || m_dead || vehicleId <= 0 || vehicleId > 2000)
+        if (m_client == nullptr || m_state != State::Spawned || m_dead || m_paused || vehicleId <= 0 || vehicleId > 2000)
             return false;
 
         const SampVector3 pos{ClampPos(position.x, -19990.0f, 19990.0f),
