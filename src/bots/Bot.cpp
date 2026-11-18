@@ -97,6 +97,7 @@ namespace FakeBots
         m_velocityX = 0.0f;
         m_velocityY = 0.0f;
         m_velocityZ = 0.0f;
+        ResetThrottle();
 
         SampBotLocalState state = m_client.GetLocalState();
         state.position = {x, y, z};
