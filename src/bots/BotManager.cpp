@@ -1072,7 +1072,7 @@ namespace FakeBots
             bot->GetCachedPosition(bx, by, bz);
             const bool isFar = !IsAnyRealPlayerWithin(bx, by, bz, m_farUpdateDistance);
             float effectiveDelta = deltaSeconds;
-            if (isFar && !bot->IsPhysicsActive())
+            if (isFar && !bot->IsPhysicsActive() && !bot->IsKnockbackActive())
             {
                 bot->AddThrottleTime(deltaSeconds);
                 const int counter = bot->GetThrottleCounter() + 1;
@@ -1088,7 +1088,7 @@ namespace FakeBots
             {
                 // Airborne bots must keep integrating gravity and checking
                 // collisions every tick, even when no real player is nearby.
-                effectiveDelta = bot->IsPhysicsActive()
+                effectiveDelta = (bot->IsPhysicsActive() || bot->IsKnockbackActive())
                     ? deltaSeconds
                     : bot->ConsumeThrottleTime(deltaSeconds);
                 bot->SetThrottleCounter(0);
