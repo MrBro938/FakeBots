@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cctype>
 #include <condition_variable>
 #include <cstring>
 #include <deque>
@@ -82,6 +83,61 @@ namespace FakeBots
                 v.z *= k;
             }
             return v;
+        }
+
+        uint16_t ResolveAnimationId(const char* library, const char* name)
+        {
+            struct AnimationEntry { const char* library; const char* name; uint16_t id; };
+            // SA-MP animation table indices for the CRACK IFP block.
+            static constexpr AnimationEntry entries[] = {
+                {"CRACK", "BBALBAT_IDLE_01", 383},
+                {"CRACK", "BBALBAT_IDLE_02", 384},
+                {"CRACK", "CRCKDETH1", 385},
+                {"CRACK", "CRCKDETH2", 386},
+                {"CRACK", "CRCKDETH3", 387},
+                {"CRACK", "CRCKDETH4", 388},
+                {"CRACK", "CRCKIDLE1", 389},
+                {"CRACK", "CRCKIDLE2", 390},
+                {"CRACK", "CRCKIDLE3", 391},
+                {"CRACK", "CRCKIDLE4", 392}
+            };
+
+            if (library == nullptr || name == nullptr)
+                return 0;
+
+            const auto equalsIgnoreCase = [](const char* left, const char* right)
+            {
+                if (left == nullptr || right == nullptr)
+                    return false;
+                while (*left != '\\0' && *right != '\\0')
+                {
+                    const unsigned char a = static_cast<unsigned char>(*left++);
+                    const unsigned char b = static_cast<unsigned char>(*right++);
+                    if (std::tolower(a) != std::tolower(b))
+                        return false;
+                }
+                return *left == '\\0' && *right == '\\0';
+            };
+
+            for (const AnimationEntry& entry : entries)
+            {
+                if (equalsIgnoreCase(library, entry.library) &&
+                    equalsIgnoreCase(name, entry.name))
+                    return entry.id;
+            }
+            return 0;
+        }
+
+        uint16_t BuildAnimationFlags(bool loop, bool lockX, bool lockY, bool freeze)
+        {
+            // On-foot sync packs frameDelta in the low byte and animation
+            // flags in the high byte.
+            uint8_t flags = 0x80; // regular animation
+            if (loop)  flags |= 1 << 0;
+            if (lockX) flags |= 1 << 1;
+            if (lockY) flags |= 1 << 2;
+            if (freeze) flags |= 1 << 3;
+            return static_cast<uint16_t>(flags) << 8;
         }
 
         bool ReadVec3(RakNet::BitStream& bs, SampVector3& v)
@@ -451,6 +507,8 @@ namespace FakeBots
         m_local.leftRight = 0;
         m_local.upDown = 0;
         m_local.specialAction = 0;
+        m_local.animationId = 0;
+        m_local.animationFlags = 0;
         m_local.inVehicle = false;
         m_local.passenger = false;
         m_local.vehicleId = 0;
@@ -736,8 +794,8 @@ namespace FakeBots
         bs.Write(0.0f);
         bs.Write(0.0f);
         bs.Write(static_cast<uint16_t>(0)); // surfing vehicle/object id
-        bs.Write(static_cast<uint16_t>(0)); // animation id
-        bs.Write(static_cast<uint16_t>(0)); // animation flags
+        bs.Write(m_local.animationId); // animation id
+        bs.Write(m_local.animationFlags); // animation flags
 
         if (!SendSync(bs))
             return false;
@@ -921,6 +979,51 @@ namespace FakeBots
                 HandlePutPlayerInVehicle(bs);
                 break;
 
+            case kRpcApplyAnimation:
+            {
+                uint8_t playerId = 0;
+                uint8_t libraryLength = 0;
+                uint8_t animationLength = 0;
+                if (!bs.Read(playerId) || !bs.Read(libraryLength) || libraryLength == 0)
+                    break;
+
+                char library[256] = {};
+                char animation[256] = {};
+                if (!bs.Read(library, libraryLength) ||
+                    !bs.Read(animationLength) || animationLength == 0 ||
+                    !bs.Read(animation, animationLength))
+                    break;
+
+                float delta = 0.0f;
+                bool loop = false, lockX = false, lockY = false, freeze = false;
+                int time = 0;
+                if (!bs.Read(delta) || !bs.Read(loop) || !bs.Read(lockX) ||
+                    !bs.Read(lockY) || !bs.Read(freeze) || !bs.Read(time))
+                    break;
+
+                library[libraryLength] = '\\0';
+                animation[animationLength] = '\\0';
+
+                if (playerId != static_cast<uint8_t>(m_playerId) ||
+                    !std::isfinite(delta) || delta <= 0.0f)
+                    break;
+
+                m_local.animationId = ResolveAnimationId(library, animation);
+                m_local.animationFlags = m_local.animationId != 0
+                    ? BuildAnimationFlags(loop, lockX, lockY, freeze)
+                    : 0;
+                break;
+            }
+            case kRpcClearAnimations:
+            {
+                uint8_t playerId = 0;
+                if (bs.Read(playerId) && playerId == static_cast<uint8_t>(m_playerId))
+                {
+                    m_local.animationId = 0;
+                    m_local.animationFlags = 0;
+                }
+                break;
+            }
             case kRpcSetPlayerName:
             {
                 uint16_t playerId = 0;
