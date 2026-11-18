@@ -1127,17 +1127,18 @@ namespace FakeBots
                     if (bot->IsKnockbackActive())
                     {
                         const int transition = bot->StepKnockback(effectiveDelta);
-                        if (transition == 2 || transition == 3)
+                        if (transition == 2 || transition == 3 || transition == 4)
                         {
                             BotAnimationState animation;
                             animation.library = "PED";
-                            animation.name = transition == 2 ? "FALL_front" : "getup_front";
+                            animation.name = transition == 4 ? "FALL_FALL"
+                                : (transition == 2 ? "FALL_COLLAPSE" : "getup_front");
                             animation.delta = 4.1f;
-                            animation.loop = false;
+                            animation.loop = transition == 4;
                             animation.lockX = true;
                             animation.lockY = true;
                             animation.freeze = false;
-                            animation.time = transition == 2 ? 730 : 1370;
+                            animation.time = transition == 4 ? 0 : (transition == 2 ? 470 : 1370);
                             animation.active = true;
                             bot->SetAnimationState(animation);
                             sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
