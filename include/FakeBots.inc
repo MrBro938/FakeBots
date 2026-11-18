@@ -94,6 +94,17 @@ native FakeBotGetID(playerid);
 native bool:FakeBotIsPlayer(playerid);
 
 // ----------------------------------------------------------------------------
+// Position / velocity physics for headless bots
+// ----------------------------------------------------------------------------
+/// Sets a bot's position and the Z height at which its fall should stop.
+/// groundZ must be the landing height in the bot's current world/interior.
+native bool:FakeBotSetPosition(playerid, Float:x, Float:y, Float:z, Float:groundZ);
+
+/// Sets velocity in GTA units per second. Gravity is simulated by the plugin
+/// while the bot is airborne.
+native bool:FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z);
+
+// ----------------------------------------------------------------------------
 // ApplyAnimation compatibility
 // ----------------------------------------------------------------------------
 // A headless FakeBot cannot execute ApplyAnimation on a GTA client. For
