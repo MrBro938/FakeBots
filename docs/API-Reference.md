@@ -97,22 +97,25 @@ FakeBots wrapper; direct server-native calls bypass the stored-state mechanism.
 ### `FakeBotSetPosition(playerid, Float:x, Float:y, Float:z)`
 
 Teleports a spawned FakeBot to the requested position and starts server-side
-gravity simulation. The bot keeps falling until a downward ColAndreas raycast
-detects a collision surface; the plugin then stops its vertical movement at
-the hit position. No landing height is supplied by the gamemode.
+gravity simulation. The bot keeps falling while gravity is active.
 
-**ColAndreas is required for collision detection.** Include `<colandreas>`
-before `<FakeBots>` so the include can provide the internal raycast callback,
-load the ColAndreas plugin on the server, and call `CA_Init()` before using
-`FakeBotSetPosition()`. If the callback is unavailable, the native returns
-false and logs the missing dependency once.
+**ColAndreas is optional.** If the ColAndreas bridge is available, FakeBots
+uses a downward raycast to detect a collision surface and stops the bot at the
+hit position. To enable this, include `<colandreas>` before `<FakeBots>`,
+load the ColAndreas plugin on the server, and call `CA_Init()` during
+initialization.
 
-The headless client still does not run GTA's own physics. FakeBots simulates
-gravity and uses ColAndreas' collision world for downward surface detection.
-ColAndreas limitations apply: its static map collision does not model every
-interior, virtual-world, per-player, or streamer object collision. Dynamic
-objects must be registered with ColAndreas' collision system to be detected.
-This is ground/surface landing detection, not full ped-vs-wall collision.
+Without ColAndreas, `FakeBotSetPosition()` still succeeds and gravity is still
+simulated, but FakeBots cannot detect the ground or stop the fall automatically.
+The bot will continue falling until another script action changes its position
+or velocity. No landing height is supplied by the gamemode.
+
+The headless client does not run GTA's own physics. ColAndreas collision
+limitations apply when it is enabled: its static map collision does not model
+every interior, virtual-world, per-player, or streamer object collision.
+Dynamic objects must be registered with ColAndreas' collision system to be
+detected. This is ground/surface landing detection, not full ped-vs-wall
+collision.
 
 ### `FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z)`
 
