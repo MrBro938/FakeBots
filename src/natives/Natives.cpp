@@ -8,6 +8,7 @@
 #include "../bots/BotFileLoader.h"
 #include "../callbacks/CallbackDispatcher.h"
 #include "../i18n/LanguageManager.h"
+#include <cmath>
 #include <random>
 
 using namespace FakeBots;
@@ -202,6 +203,57 @@ namespace
         if (!HasNativeParams(params, 1)) return 0;
         (void)amx;
         return BotManager::Get().IsPlayerBot(static_cast<int>(params[1])) ? 1 : 0;
+    }
+
+    // --------------------------------------------------------------------
+    // Explicit position / velocity for headless-bot physics
+    // --------------------------------------------------------------------
+    cell AMX_NATIVE_CALL n_FakeBotSetPosition(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 5))
+            return 0;
+
+        const int playerId = static_cast<int>(params[1]);
+        Bot *bot = BotManager::Get().GetByPlayerId(playerId);
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle)
+            return 0;
+
+        const float x = amx_ctof(params[2]);
+        const float y = amx_ctof(params[3]);
+        const float z = amx_ctof(params[4]);
+        const float groundZ = amx_ctof(params[5]);
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
+            !std::isfinite(groundZ) || groundZ > z)
+            return 0;
+
+        if (!sampgdk::SetPlayerPos(playerId, x, y, z))
+            return 0;
+
+        bot->SetPhysicsPosition(x, y, z, groundZ);
+        return 1;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotSetVelocity(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 4))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle)
+            return 0;
+
+        const float x = amx_ctof(params[2]);
+        const float y = amx_ctof(params[3]);
+        const float z = amx_ctof(params[4]);
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
+            return 0;
+
+        bot->SetPhysicsVelocity(x, y, z);
+        return 1;
     }
 
     // --------------------------------------------------------------------
@@ -1099,6 +1151,8 @@ namespace FakeBots
                 { "FakeBotGetPlayerID",           n_FakeBotGetPlayerID },
                 { "FakeBotGetID",              n_FakeBotGetID },
                 { "FakeBotIsPlayer",        n_FakeBotIsPlayer },
+                { "FakeBotSetPosition",      n_FakeBotSetPosition },
+                { "FakeBotSetVelocity",      n_FakeBotSetVelocity },
                 { "FakeBotStoreAnimation",   n_FakeBotStoreAnimation },
                 { "FakeBotClearAnimationState", n_FakeBotClearAnimationState },
 
