@@ -99,7 +99,19 @@ namespace FakeBots
                 {"CRACK", "CRCKIDLE1", 389},
                 {"CRACK", "CRCKIDLE2", 390},
                 {"CRACK", "CRCKIDLE3", 391},
-                {"CRACK", "CRCKIDLE4", 392}
+                {"CRACK", "CRCKIDLE4", 392},
+                {"BEACH", "BATHER", 41},
+                {"BEACH", "LAY_BAC_LOOP", 42},
+                {"BEACH", "PARKSIT_M_LOOP", 43},
+                {"BEACH", "PARKSIT_W_LOOP", 44},
+                {"BEACH", "SITNWAIT_LOOP_W", 45},
+                {"BENCHPRESS", "GYM_BP_CELEBRATE", 46},
+                {"BENCHPRESS", "GYM_BP_DOWN", 47},
+                {"BENCHPRESS", "GYM_BP_GETOFF", 48},
+                {"BENCHPRESS", "GYM_BP_GETON", 49},
+                {"BENCHPRESS", "GYM_BP_UP_A", 50},
+                {"BENCHPRESS", "GYM_BP_UP_B", 51},
+                {"BENCHPRESS", "GYM_BP_UP_SMOOTH", 52}
             };
 
             if (library == nullptr || name == nullptr)
