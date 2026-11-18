@@ -1072,7 +1072,7 @@ namespace FakeBots
             bot->GetCachedPosition(bx, by, bz);
             const bool isFar = !IsAnyRealPlayerWithin(bx, by, bz, m_farUpdateDistance);
             float effectiveDelta = deltaSeconds;
-            if (isFar)
+            if (isFar && !bot->IsPhysicsActive())
             {
                 bot->AddThrottleTime(deltaSeconds);
                 const int counter = bot->GetThrottleCounter() + 1;
@@ -1086,7 +1086,11 @@ namespace FakeBots
             }
             else
             {
-                effectiveDelta = bot->ConsumeThrottleTime(deltaSeconds);
+                // Airborne bots must keep integrating gravity and checking
+                // collisions every tick, even when no real player is nearby.
+                effectiveDelta = bot->IsPhysicsActive()
+                    ? deltaSeconds
+                    : bot->ConsumeThrottleTime(deltaSeconds);
                 bot->SetThrottleCounter(0);
             }
 
@@ -1129,8 +1133,9 @@ namespace FakeBots
                     if (bot->IsPhysicsActive() && nextZ < previousZ)
                     {
                         float collisionZ = 0.0f;
-                        if (CallbackDispatcher::Get().RaycastDown(
-                                nextX, nextY, previousZ + 0.25f, nextZ - 0.25f, collisionZ))
+                        if (CallbackDispatcher::Get().RaycastSegment(
+                                previousX, previousY, previousZ + 0.25f,
+                                nextX, nextY, nextZ - 0.25f, collisionZ))
                         {
                             // Keep a tiny separation so the next ray does not start inside the surface.
                             bot->LandPhysics(collisionZ + 0.05f);
