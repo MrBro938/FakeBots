@@ -205,6 +205,53 @@ namespace
     }
 
     // --------------------------------------------------------------------
+    // Animation persistence for classic SA-MP stream-in
+    // --------------------------------------------------------------------
+    cell AMX_NATIVE_CALL n_FakeBotStoreAnimation(AMX *amx, cell *params)
+    {
+        if (!HasNativeParams(params, 9))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr)
+            return 0;
+
+        char *library = nullptr;
+        char *name = nullptr;
+        amx_StrParam(amx, params[2], library);
+        amx_StrParam(amx, params[3], name);
+        if (library == nullptr || name == nullptr || library[0] == '\0' || name[0] == '\0')
+            return 0;
+
+        BotAnimationState state;
+        state.library = library;
+        state.name = name;
+        state.delta = amx_ctof(params[4]);
+        state.loop = params[5] != 0;
+        state.lockX = params[6] != 0;
+        state.lockY = params[7] != 0;
+        state.freeze = params[8] != 0;
+        state.time = static_cast<int>(params[9]);
+        state.active = true;
+        bot->SetAnimationState(state);
+        return 1;
+    }
+
+    cell AMX_NATIVE_CALL n_FakeBotClearAnimationState(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 1))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr)
+            return 0;
+
+        bot->ClearAnimationState();
+        return 1;
+    }
+
+    // --------------------------------------------------------------------
     // On-foot movement
     // --------------------------------------------------------------------
     cell AMX_NATIVE_CALL n_FakeBotGoTo(AMX *amx, cell *params)
@@ -1052,6 +1099,8 @@ namespace FakeBots
                 { "FakeBotGetPlayerID",           n_FakeBotGetPlayerID },
                 { "FakeBotGetID",              n_FakeBotGetID },
                 { "FakeBotIsPlayer",        n_FakeBotIsPlayer },
+                { "FakeBotStoreAnimation",   n_FakeBotStoreAnimation },
+                { "FakeBotClearAnimationState", n_FakeBotClearAnimationState },
 
                 { "FakeBotGoTo",                  n_FakeBotGoTo },
                 { "FakeBotStopMoving",             n_FakeBotStopMoving },
