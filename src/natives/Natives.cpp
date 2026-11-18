@@ -254,6 +254,46 @@ namespace
         return 1;
     }
 
+    cell AMX_NATIVE_CALL n_FakeBotSimulateKnockback(AMX *amx, cell *params)
+    {
+        (void)amx;
+        if (!HasNativeParams(params, 4))
+            return 0;
+
+        Bot *bot = BotManager::Get().GetByPlayerId(static_cast<int>(params[1]));
+        if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
+            bot->Client().GetLocalState().inVehicle || bot->IsKnockbackActive())
+            return 0;
+
+        const float velocityX = amx_ctof(params[2]);
+        const float velocityY = amx_ctof(params[3]);
+        const float upVelocity = amx_ctof(params[4]);
+        if (!std::isfinite(velocityX) || !std::isfinite(velocityY) ||
+            !std::isfinite(upVelocity) || upVelocity < 1.0f || upVelocity > 20.0f ||
+            std::fabs(velocityX) > 20.0f || std::fabs(velocityY) > 20.0f)
+            return 0;
+
+        if (!bot->StartKnockback(velocityX, velocityY, upVelocity))
+            return 0;
+
+        BotAnimationState animation;
+        animation.library = "PED";
+        animation.name = "FALL_fall";
+        animation.delta = 4.1f;
+        animation.loop = true;
+        animation.lockX = true;
+        animation.lockY = true;
+        animation.freeze = false;
+        animation.time = 0;
+        animation.active = true;
+        bot->SetAnimationState(animation);
+        sampgdk::ApplyAnimation(bot->GetPlayerId(), animation.library.c_str(),
+            animation.name.c_str(), animation.delta, animation.loop,
+            animation.lockX, animation.lockY, animation.freeze,
+            animation.time, true);
+        return 1;
+    }
+
     // --------------------------------------------------------------------
     // Animation persistence for classic SA-MP stream-in
     // --------------------------------------------------------------------
@@ -1151,6 +1191,7 @@ namespace FakeBots
                 { "FakeBotIsPlayer",        n_FakeBotIsPlayer },
                 { "FakeBotSetPosition",      n_FakeBotSetPosition },
                 { "FakeBotSetVelocity",      n_FakeBotSetVelocity },
+                { "FakeBotSimulateKnockback", n_FakeBotSimulateKnockback },
                 { "FakeBotStoreAnimation",   n_FakeBotStoreAnimation },
                 { "FakeBotClearAnimationState", n_FakeBotClearAnimationState },
 
