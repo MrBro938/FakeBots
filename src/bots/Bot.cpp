@@ -84,6 +84,13 @@ namespace FakeBots
 
     void Bot::SetPhysicsPosition(float x, float y, float z, float groundZ)
     {
+        // A scripted launch takes ownership of movement until the bot lands.
+        ClearWaypoints();
+        StopMoving();
+        StopFollowing();
+        StopCombat();
+        SetIdleWander(false, x, y, z, 0.0f, 0.0f);
+
         m_cachedX = x;
         m_cachedY = y;
         m_cachedZ = z;
