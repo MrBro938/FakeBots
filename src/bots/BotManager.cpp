@@ -1065,7 +1065,7 @@ namespace FakeBots
         for (int botId : m_activeBotIds)
         {
             Bot *bot = GetByBotId(botId);
-            if (bot == nullptr || bot->GetState() != BotLifeState::Spawned)
+            if (bot == nullptr || bot->GetState() != BotLifeState::Spawned || bot->Client().IsPaused())
                 continue;
 
             float bx, by, bz;
