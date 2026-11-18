@@ -94,25 +94,37 @@ FakeBots wrapper; direct server-native calls bypass the stored-state mechanism.
 
 ## Position / velocity physics
 
-### `FakeBotSetPosition(playerid, Float:x, Float:y, Float:z, Float:groundZ)`
+### `FakeBotSetPosition(playerid, Float:x, Float:y, Float:z)`
 
-Sets a FakeBot's position and starts server-side falling when `z` is above
-`groundZ`. The `groundZ` argument is the explicit landing height supplied by
-the gamemode. The headless client has no GTA collision world, so the plugin
-cannot automatically discover floors, platforms, or interior geometry.
+Teleports a spawned FakeBot to the requested position and starts server-side
+gravity simulation. The bot keeps falling until a downward ColAndreas raycast
+detects a collision surface; the plugin then stops its vertical movement at
+the hit position. No landing height is supplied by the gamemode.
+
+**ColAndreas is required for collision detection.** Include `<colandreas>`
+before `<FakeBots>` so the include can provide the internal raycast callback,
+load the ColAndreas plugin on the server, and call `CA_Init()` before using
+`FakeBotSetPosition()`. If the callback is unavailable, the native returns
+false and logs the missing dependency once.
+
+The headless client still does not run GTA's own physics. FakeBots simulates
+gravity and uses ColAndreas' collision world for downward surface detection.
+ColAndreas limitations apply: its static map collision does not model every
+interior, virtual-world, per-player, or streamer object collision. Dynamic
+objects must be registered with ColAndreas' collision system to be detected.
+This is ground/surface landing detection, not full ped-vs-wall collision.
 
 ### `FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z)`
 
 Sets velocity in GTA world units per second. The plugin integrates velocity
-and gravity on each simulation tick and clamps the bot to the `groundZ`
-provided to `FakeBotSetPosition()`.
+and gravity on each simulation tick while the bot is airborne.
 
-Example: lift a bot by 8 units and let it fall back to its original height:
+Example: move a bot 8 units upward and let it fall onto the first surface below:
 
 ```pawn
 new Float:x, Float:y, Float:z;
 GetPlayerPos(playerid, x, y, z);
-FakeBotSetPosition(playerid, x, y, z + 8.0, z);
+FakeBotSetPosition(playerid, x, y, z + 8.0);
 ```
 
 To add an initial upward impulse, call `FakeBotSetVelocity()` after
