@@ -507,10 +507,11 @@ forward OnFakeBotPlayerNearby(botid, playerid, Float:distance);
 #if defined COLANDREAS
 // Internal synchronous callback used by FakeBots to query the collision world.
 // Include <colandreas> before <FakeBots> and call CA_Init() during game-mode init.
-public FakeBots_OnPhysicsRayCast(Float:x, Float:y, Float:startZ, Float:endZ, &Float:hitZ)
+public FakeBots_OnPhysicsRayCast(Float:startX, Float:startY, Float:startZ,
+    Float:endX, Float:endY, Float:endZ, &Float:hitZ)
 {
     new Float:hitX, Float:hitY, Float:collisionZ;
-    if (!CA_RayCastLine(x, y, startZ, x, y, endZ, hitX, hitY, collisionZ))
+    if (!CA_RayCastLine(startX, startY, startZ, endX, endY, endZ, hitX, hitY, collisionZ))
         return 0;
 
     hitZ = collisionZ;
