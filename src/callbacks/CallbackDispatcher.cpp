@@ -118,6 +118,10 @@ namespace FakeBots
                 hitZ = resultZ;
                 return true;
             }
+
+            // All scripts use the same include-provided bridge. Do not repeat
+            // the identical ColAndreas raycast for every loaded AMX instance.
+            return false;
         }
         return false;
     }
