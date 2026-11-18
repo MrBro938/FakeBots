@@ -211,8 +211,19 @@ namespace
     cell AMX_NATIVE_CALL n_FakeBotSetPosition(AMX *amx, cell *params)
     {
         (void)amx;
-        if (!HasNativeParams(params, 5))
+        if (!HasNativeParams(params, 4))
             return 0;
+
+        if (!CallbackDispatcher::Get().HasGroundRaycast())
+        {
+            static bool warningLogged = false;
+            if (!warningLogged)
+            {
+                warningLogged = true;
+                sampgdk::logprintf("[FakeBots] FakeBotSetPosition requires ColAndreas: include <colandreas> before <FakeBots> and initialize it with CA_Init().");
+            }
+            return 0;
+        }
 
         const int playerId = static_cast<int>(params[1]);
         Bot *bot = BotManager::Get().GetByPlayerId(playerId);
@@ -223,15 +234,13 @@ namespace
         const float x = amx_ctof(params[2]);
         const float y = amx_ctof(params[3]);
         const float z = amx_ctof(params[4]);
-        const float groundZ = amx_ctof(params[5]);
-        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
-            !std::isfinite(groundZ) || groundZ > z)
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
             return 0;
 
         // The bot's next OnFootSync carries this position to the server.
         // Do not call SetPlayerPos here: that would send an RPC back to the
         // headless client and race its own authoritative sync state.
-        bot->SetPhysicsPosition(x, y, z, groundZ);
+        bot->SetPhysicsPosition(x, y, z);
         return 1;
     }
 
