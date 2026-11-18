@@ -70,7 +70,6 @@ namespace FakeBots
         m_lastAppliedAnim = BotMoveType::None;
         ClearAnimationState();
         m_physicsActive = false;
-        m_physicsGroundZ = 0.0f;
         m_followTargetId = kInvalidId;
         m_combatTargetId = kInvalidId;
         m_combatCooldown = 0.0f;
@@ -82,7 +81,7 @@ namespace FakeBots
         SetCachedKeys(0);
     }
 
-    void Bot::SetPhysicsPosition(float x, float y, float z, float groundZ)
+    void Bot::SetPhysicsPosition(float x, float y, float z)
     {
         // A scripted launch takes ownership of movement until the bot lands.
         ClearWaypoints();
@@ -94,8 +93,7 @@ namespace FakeBots
         m_cachedX = x;
         m_cachedY = y;
         m_cachedZ = z;
-        m_physicsGroundZ = groundZ;
-        m_physicsActive = z > groundZ + 0.001f;
+        m_physicsActive = true;
         m_velocityX = 0.0f;
         m_velocityY = 0.0f;
         m_velocityZ = 0.0f;
@@ -116,10 +114,7 @@ namespace FakeBots
         state.velocity = {x, y, z};
         m_client.SetLocalState(state);
 
-        if (m_cachedZ > m_physicsGroundZ + 0.001f || std::fabs(z) > 0.001f)
-        {
-            m_physicsActive = true;
-        }
+        m_physicsActive = true;
     }
 
     void Bot::StepPhysics(float deltaSeconds)
@@ -135,19 +130,16 @@ namespace FakeBots
         m_cachedX += m_velocityX * dt;
         m_cachedY += m_velocityY * dt;
 
-        const float nextZ = m_cachedZ + m_velocityZ * dt;
-        if (m_velocityZ <= 0.0f && nextZ <= m_physicsGroundZ)
-        {
-            m_cachedZ = m_physicsGroundZ;
-            m_velocityX = 0.0f;
-            m_velocityY = 0.0f;
-            m_velocityZ = 0.0f;
-            m_physicsActive = false;
-        }
-        else
-        {
-            m_cachedZ = nextZ;
-        }
+        m_cachedZ += m_velocityZ * dt;
+    }
+
+    void Bot::LandPhysics(float groundZ)
+    {
+        m_cachedZ = groundZ;
+        m_velocityX = 0.0f;
+        m_velocityY = 0.0f;
+        m_velocityZ = 0.0f;
+        m_physicsActive = false;
     }
 
     void Bot::SyncClientStateFromNetwork()
