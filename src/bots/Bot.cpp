@@ -70,6 +70,9 @@ namespace FakeBots
         m_lastAppliedAnim = BotMoveType::None;
         ClearAnimationState();
         m_physicsActive = false;
+        m_knockbackPhase = 0;
+        m_knockbackElapsed = 0.0f;
+        m_knockbackPhaseElapsed = 0.0f;
         m_followTargetId = kInvalidId;
         m_combatTargetId = kInvalidId;
         m_combatCooldown = 0.0f;
@@ -81,8 +84,100 @@ namespace FakeBots
         SetCachedKeys(0);
     }
 
+    bool Bot::StartKnockback(float velocityX, float velocityY, float upVelocity)
+    {
+        if (!std::isfinite(velocityX) || !std::isfinite(velocityY) ||
+            !std::isfinite(upVelocity) || upVelocity <= 0.0f)
+            return false;
+
+        ClearWaypoints();
+        StopMoving();
+        StopFollowing();
+        StopCombat();
+        StopDriving();
+        SetIdleWander(false, m_cachedX, m_cachedY, m_cachedZ, 0.0f, 0.0f);
+
+        m_knockbackOriginX = m_cachedX;
+        m_knockbackOriginY = m_cachedY;
+        m_knockbackOriginZ = m_cachedZ;
+        m_knockbackVelocityX = velocityX;
+        m_knockbackVelocityY = velocityY;
+        m_knockbackUpVelocity = upVelocity;
+        m_knockbackElapsed = 0.0f;
+        m_knockbackPhaseElapsed = 0.0f;
+        constexpr float kGravity = 9.81f;
+        constexpr float kMaxHorizontalOffset = 0.75f;
+        m_knockbackFlightDuration = (2.0f * upVelocity) / kGravity;
+
+        const float horizontalSpeed = std::sqrt(velocityX * velocityX + velocityY * velocityY);
+        const float maxOffset = horizontalSpeed * m_knockbackFlightDuration * 0.25f;
+        m_knockbackHorizontalScale = maxOffset > kMaxHorizontalOffset
+            ? (kMaxHorizontalOffset / maxOffset) : 1.0f;
+
+        m_knockbackPhase = 1;
+        m_physicsActive = false;
+        m_velocityX = velocityX * m_knockbackHorizontalScale;
+        m_velocityY = velocityY * m_knockbackHorizontalScale;
+        m_velocityZ = upVelocity;
+        ResetThrottle();
+        return true;
+    }
+
+    int Bot::StepKnockback(float deltaSeconds)
+    {
+        if (m_knockbackPhase == 0 || deltaSeconds <= 0.0f)
+            return 0;
+
+        const float dt = std::min(deltaSeconds, 0.1f);
+        if (m_knockbackPhase == 1)
+        {
+            constexpr float kGravity = 9.81f;
+            m_knockbackElapsed = std::min(m_knockbackElapsed + dt, m_knockbackFlightDuration);
+            const float t = m_knockbackElapsed;
+            const float returnFactor = t * (1.0f - t / m_knockbackFlightDuration);
+
+            m_cachedX = m_knockbackOriginX + m_knockbackVelocityX * m_knockbackHorizontalScale * returnFactor;
+            m_cachedY = m_knockbackOriginY + m_knockbackVelocityY * m_knockbackHorizontalScale * returnFactor;
+            m_cachedZ = m_knockbackOriginZ + m_knockbackUpVelocity * t - 0.5f * kGravity * t * t;
+            m_velocityX = m_knockbackVelocityX * m_knockbackHorizontalScale *
+                (1.0f - 2.0f * t / m_knockbackFlightDuration);
+            m_velocityY = m_knockbackVelocityY * m_knockbackHorizontalScale *
+                (1.0f - 2.0f * t / m_knockbackFlightDuration);
+            m_velocityZ = m_knockbackUpVelocity - kGravity * t;
+
+            if (m_knockbackElapsed >= m_knockbackFlightDuration)
+            {
+                // Snap to the captured point to avoid accumulated float error.
+                m_cachedX = m_knockbackOriginX;
+                m_cachedY = m_knockbackOriginY;
+                m_cachedZ = m_knockbackOriginZ;
+                m_velocityX = m_velocityY = m_velocityZ = 0.0f;
+                m_knockbackPhase = 2;
+                m_knockbackPhaseElapsed = 0.0f;
+                return 2;
+            }
+            return 0;
+        }
+
+        m_knockbackPhaseElapsed += dt;
+        if (m_knockbackPhase == 2 && m_knockbackPhaseElapsed >= 0.45f)
+        {
+            m_knockbackPhase = 3;
+            m_knockbackPhaseElapsed = 0.0f;
+            return 3;
+        }
+        if (m_knockbackPhase == 3 && m_knockbackPhaseElapsed >= 1.0f)
+        {
+            m_knockbackPhase = 0;
+            m_knockbackPhaseElapsed = 0.0f;
+            return -1;
+        }
+        return 0;
+    }
+
     void Bot::SetPhysicsPosition(float x, float y, float z)
     {
+        m_knockbackPhase = 0;
         // A scripted launch takes ownership of movement until the bot lands.
         ClearWaypoints();
         StopMoving();
@@ -107,6 +202,7 @@ namespace FakeBots
 
     void Bot::SetPhysicsVelocity(float x, float y, float z)
     {
+        m_knockbackPhase = 0;
         m_velocityX = x;
         m_velocityY = y;
         m_velocityZ = z;
