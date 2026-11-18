@@ -109,14 +109,14 @@ namespace FakeBots
             {
                 if (left == nullptr || right == nullptr)
                     return false;
-                while (*left != '\\0' && *right != '\\0')
+                while (*left != '\0' && *right != '\0')
                 {
                     const unsigned char a = static_cast<unsigned char>(*left++);
                     const unsigned char b = static_cast<unsigned char>(*right++);
                     if (std::tolower(a) != std::tolower(b))
                         return false;
                 }
-                return *left == '\\0' && *right == '\\0';
+                return *left == '\0' && *right == '\0';
             };
 
             for (const AnimationEntry& entry : entries)
@@ -1001,8 +1001,8 @@ namespace FakeBots
                     !bs.Read(lockY) || !bs.Read(freeze) || !bs.Read(time))
                     break;
 
-                library[libraryLength] = '\\0';
-                animation[animationLength] = '\\0';
+                library[libraryLength] = '\0';
+                animation[animationLength] = '\0';
 
                 (void)time; // The on-foot sync format only carries the compact animation flags.
                 if (playerId != static_cast<uint8_t>(m_playerId) ||
