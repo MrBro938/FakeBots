@@ -1119,7 +1119,10 @@ namespace FakeBots
                 if (bot->Client().GetLocalState().inVehicle)
                     bot->SendVehicleIdleSync(now);
                 else
+                {
+                    bot->StepPhysics(effectiveDelta);
                     bot->SendOnFootSync(now);
+                }
             }
         }
 
