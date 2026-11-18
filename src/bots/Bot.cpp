@@ -149,6 +149,7 @@ namespace FakeBots
         // Movement/driving/AI cannot continue once the bot leaves the world.
         if (state == BotLifeState::Dead || state == BotLifeState::Removing)
         {
+            ClearAnimationState();
             StopMoving();
             StopDriving();
             StopFollowing();
