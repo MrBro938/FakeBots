@@ -148,6 +148,9 @@ namespace FakeBots
         bool BeginForcedSpawn();
         void ConfirmServerSpawn();
         bool IsConnected() const;
+        // Stops player sync while keeping the RakNet connection and RPC processing alive.
+        bool SetPaused(bool paused);
+        bool IsPaused() const { return m_paused; }
         bool IsSpawned() const { return m_state == State::Spawned; }
         State GetState() const { return m_state; }
         int GetPlayerId() const { return m_playerId; }
@@ -271,6 +274,7 @@ namespace FakeBots
 
         bool m_failureNotified = false;
         bool m_dead = false;
+        bool m_paused = false;
         bool m_playerIdAnnounced = false;
 
         uint32_t m_stageDeadlineMs = 0;
