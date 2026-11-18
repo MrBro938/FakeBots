@@ -1004,6 +1004,7 @@ namespace FakeBots
                 library[libraryLength] = '\\0';
                 animation[animationLength] = '\\0';
 
+                (void)time; // The on-foot sync format only carries the compact animation flags.
                 if (playerId != static_cast<uint8_t>(m_playerId) ||
                     !std::isfinite(delta) || delta <= 0.0f)
                     break;
