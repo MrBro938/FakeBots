@@ -94,6 +94,30 @@ native FakeBotGetID(playerid);
 native bool:FakeBotIsPlayer(playerid);
 
 // ----------------------------------------------------------------------------
+// ApplyAnimation compatibility
+// ----------------------------------------------------------------------------
+// A headless FakeBot cannot execute ApplyAnimation on a GTA client and therefore
+// cannot generate the client-side animation sync expected when forcesync is 0.
+// Redirect Pawn calls made after this include through a stock wrapper: bots get
+// forcesync=1, while real players retain the caller's original value.
+//
+// Include <a_samp> before <FakeBots> so the native declaration is already known.
+// Define FAKEBOTS_NO_AUTO_ANIMATION_SYNC before <FakeBots> to disable redirection.
+stock FakeBots_ApplyAnimation(playerid, const animlib[], const animname[], Float:fDelta,
+    loop, lockx, locky, freeze, time, forcesync = 0)
+{
+    if (FakeBotIsPlayer(playerid))
+        forcesync = 1;
+
+    return ApplyAnimation(playerid, animlib, animname, fDelta,
+        loop, lockx, locky, freeze, time, forcesync);
+}
+
+#if !defined FAKEBOTS_NO_AUTO_ANIMATION_SYNC
+    #define ApplyAnimation FakeBots_ApplyAnimation
+#endif
+
+// ----------------------------------------------------------------------------
 // On-foot movement
 // ----------------------------------------------------------------------------
 
