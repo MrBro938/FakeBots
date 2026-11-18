@@ -52,6 +52,8 @@ namespace FakeBots
         float vehicleHealth = 1000.0f;
         uint8_t weapon = 0;
         uint8_t specialAction = 0;
+        uint16_t animationId = 0;
+        uint16_t animationFlags = 0;
         uint16_t keys = 0;
         uint16_t leftRight = 0; // pad analog, two's complement (0xFF80 == -128)
         uint16_t upDown = 0;
@@ -196,6 +198,7 @@ namespace FakeBots
         static constexpr unsigned char kRpcPutPlayerInVehicle = 70;
         static constexpr unsigned char kRpcRemovePlayerFromVehicle = 71;
         static constexpr unsigned char kRpcApplyAnimation = 86;
+        static constexpr unsigned char kRpcClearAnimations = 87;
         static constexpr unsigned char kRpcSetPlayerSpecialAction = 88;
         static constexpr unsigned char kRpcSetPlayerVelocity = 90;
         static constexpr unsigned char kRpcSetVehicleVelocity = 91;
@@ -220,7 +223,7 @@ namespace FakeBots
 
         // Server -> client RPCs this client reacts to.
         static constexpr unsigned char kHandledRpcs[] = {
-            11, 12, 13, 14, 15, 19, 21, 22, 66, 67, 70, 71, 88, 90, 91, 103,
+            11, 12, 13, 14, 15, 19, 21, 22, 66, 67, 70, 71, 86, 87, 88, 90, 91, 103,
             128, 129, 130, 139, 145, 147, 153, 156};
         static constexpr size_t kHandledRpcCount = sizeof(kHandledRpcs) / sizeof(kHandledRpcs[0]);
 
