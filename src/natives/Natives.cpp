@@ -214,17 +214,6 @@ namespace
         if (!HasNativeParams(params, 4))
             return 0;
 
-        if (!CallbackDispatcher::Get().HasGroundRaycast())
-        {
-            static bool warningLogged = false;
-            if (!warningLogged)
-            {
-                warningLogged = true;
-                sampgdk::logprintf("[FakeBots] FakeBotSetPosition requires ColAndreas: include <colandreas> before <FakeBots> and initialize it with CA_Init().");
-            }
-            return 0;
-        }
-
         const int playerId = static_cast<int>(params[1]);
         Bot *bot = BotManager::Get().GetByPlayerId(playerId);
         if (bot == nullptr || bot->GetState() != BotLifeState::Spawned ||
