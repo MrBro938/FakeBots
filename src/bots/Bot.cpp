@@ -312,6 +312,9 @@ namespace FakeBots
         {
             ClearAnimationState();
             m_physicsActive = false;
+            m_knockbackPhase = 0;
+            m_knockbackElapsed = 0.0f;
+            m_knockbackPhaseElapsed = 0.0f;
             StopMoving();
             StopDriving();
             StopFollowing();
