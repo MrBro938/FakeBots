@@ -66,6 +66,7 @@ namespace FakeBots
         m_loopWaypoints = false;
         m_loopDriveWaypoints = false;
         m_lastAppliedAnim = BotMoveType::None;
+        ClearAnimationState();
         m_followTargetId = kInvalidId;
         m_combatTargetId = kInvalidId;
         m_combatCooldown = 0.0f;
