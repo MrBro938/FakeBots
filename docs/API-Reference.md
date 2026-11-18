@@ -92,6 +92,30 @@ The redirection only affects calls compiled after the FakeBots include.
 The persistence mechanism applies to animations requested through the
 FakeBots wrapper; direct server-native calls bypass the stored-state mechanism.
 
+## Position / velocity physics
+
+### `FakeBotSetPosition(playerid, Float:x, Float:y, Float:z, Float:groundZ)`
+
+Sets a FakeBot's position and starts server-side falling when `z` is above
+`groundZ`. The `groundZ` argument is the explicit landing height supplied by
+the gamemode. The headless client has no GTA collision world, so the plugin
+cannot automatically discover floors, platforms, or interior geometry.
+
+### `FakeBotSetVelocity(playerid, Float:x, Float:y, Float:z)`
+
+Sets velocity in GTA world units per second. The plugin integrates velocity
+and gravity on each simulation tick and clamps the bot to the `groundZ`
+provided to `FakeBotSetPosition()`.
+
+Example: lift a bot by 8 units and let it fall back to its original height:
+
+```pawn
+new Float:x, Float:y, Float:z;
+GetPlayerPos(playerid, x, y, z);
+FakeBotSetPosition(playerid, x, y, z + 8.0, z);
+FakeBotSetVelocity(playerid, 0.0, 0.0, 0.0);
+```
+
 ## On-foot movement
 
 ### `FakeBotGoTo(botid, Float:x, Float:y, Float:z, Float:speed = 1.0, movetype = FAKEBOTS_MOVE_WALK)`
