@@ -75,21 +75,22 @@ When `<a_samp>` is included before `<FakeBots>`, calls to the standard
 Pawn `ApplyAnimation()` and `ClearAnimations()` made after the FakeBots
 include are routed through stock wrappers.
 
-For FakeBots, `ApplyAnimation()` uses `forcesync = 2`. On open.mp this is
-`SYNC_OTHER`: the server sends the animation to streamed-in viewers without
-trying to apply it to the headless bot itself. Unlike ordinary forced sync,
-this mode is intended for NPC-style and persistent animations when players
-stream in. `ClearAnimations()` uses `forcesync = 1` for bots so viewers
-also receive the clear operation. For real players, both wrappers preserve
-the caller's original `forcesync` value.
+Classic SA-MP 0.3.7 does not provide open.mp's persistent SYNC_OTHER
+(`forcesync = 2`) behavior. For FakeBots, the wrapper therefore stores the
+animation parameters in the plugin and calls `ApplyAnimation()` with
+`forcesync = 1` so currently streamed-in players see it. The plugin then
+re-applies the stored animation from its `OnPlayerStreamIn` hook whenever
+the bot becomes visible to a player again. `ClearAnimations()` removes the
+stored state and uses `forcesync = 1` so current viewers also receive the
+clear operation. For real players, both wrappers preserve the caller's
+original `forcesync` value.
 
 This is a Pawn include-level redirection, not a runtime replacement of the
 server natives. If a script must keep the original native names untouched,
 define `FAKEBOTS_NO_AUTO_ANIMATION_SYNC` before including `<FakeBots>`.
 The redirection only affects calls compiled after the FakeBots include.
-The persistent `forcesync = 2` behavior is an open.mp feature; classic
-SA-MP treats nonzero `forcesync` as forced sync but does not document the
-same persistent stream-in behavior.
+The persistence mechanism applies to animations requested through the
+FakeBots wrapper; direct server-native calls bypass the stored-state mechanism.
 
 ## On-foot movement
 
