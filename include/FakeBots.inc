@@ -93,6 +93,16 @@ native FakeBotGetID(playerid);
 /// Convenience wrapper around FakeBotGetID(playerid) != FAKEBOTS_INVALID_ID.
 native bool:FakeBotIsPlayer(playerid);
 
+/// Simulates the player's ESC pause: stops all player sync and bot simulation
+/// while keeping the network connection alive. The bot must be spawned.
+native bool:FakeBotPause(botid);
+
+/// Resumes a bot previously paused with FakeBotPause().
+native bool:FakeBotResume(botid);
+
+/// Returns 1 while the bot is in the simulated ESC pause state.
+native bool:FakeBotIsPaused(botid);
+
 // ----------------------------------------------------------------------------
 // Position / velocity physics for headless bots
 // ----------------------------------------------------------------------------
