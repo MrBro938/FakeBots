@@ -69,6 +69,20 @@ Reverse lookup. Returns `FAKEBOTS_INVALID_ID` if `playerid` isn't a bot.
 ### `FakeBotIsPlayer(playerid)`
 Shorthand for `FakeBotGetID(playerid) != FAKEBOTS_INVALID_ID`.
 
+### Automatic animation sync for bots
+
+When `<a_samp>` is included before `<FakeBots>`, calls to the standard
+Pawn `ApplyAnimation()` made after the FakeBots include are routed through
+a stock wrapper. For FakeBots players, it forces the final `forcesync`
+argument to `1`, because a headless bot cannot execute the animation on a
+GTA client and send the usual client-side animation sync. For real players,
+the caller's `forcesync` value is preserved.
+
+This is a Pawn include-level redirection, not a runtime replacement of the
+server native. If a script must keep the original native name untouched,
+define `FAKEBOTS_NO_AUTO_ANIMATION_SYNC` before including `<FakeBots>`.
+The redirection only affects calls compiled after the FakeBots include.
+
 ## On-foot movement
 
 ### `FakeBotGoTo(botid, Float:x, Float:y, Float:z, Float:speed = 1.0, movetype = FAKEBOTS_MOVE_WALK)`
